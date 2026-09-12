@@ -29,7 +29,7 @@ export default function PublicLayout() {
   const isHome = location.pathname === '/';
 
   useEffect(() => {
-    api('/public/settings').then((s) => setSettings(s)).catch(() => {});
+    api('/public/settings').then((s) => setSettings(s)).catch(() => { });
     setOpen(false);
   }, [location.pathname]);
 
@@ -120,7 +120,12 @@ export default function PublicLayout() {
               </div>
               <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-400">{settings?.description}</p>
               <div className="mt-5 flex flex-wrap gap-2">
-                {[{ key: 'instagram', label: 'Instagram' }, { key: 'facebook', label: 'Facebook' }, { key: 'youtube', label: 'YouTube' }, { key: 'tiktok', label: 'TikTok' }].map((s) => settings[s.key] ? (
+                {[
+                  { key: 'instagram', label: 'Instagram' },
+                  { key: 'facebook', label: 'Facebook' },
+                  { key: 'youtube', label: 'YouTube' },
+                  { key: 'tiktok', label: 'TikTok' },
+                ].map((s) => settings?.[s.key] ? (
                   <a key={s.key} href={settings[s.key]} target="_blank" rel="noreferrer" className="rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition-colors">{s.label}</a>
                 ) : null)}
               </div>
