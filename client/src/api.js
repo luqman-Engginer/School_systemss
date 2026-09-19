@@ -1,6 +1,14 @@
 const TOKEN_KEY = 'sh_token';
 const USER_KEY = 'sh_user';
 
+const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
+export function mediaUrl(path) {
+  if (!path) return path;
+  if (/^(https?:|data:|\/\/)/.test(path)) return path;
+  return `${BASE_URL}${path}`;
+}
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -31,7 +39,7 @@ export async function api(path, { method = 'GET', body, form } = {}) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  const res = await fetch(`/api${path}`, { method, headers, body: payload });
+  const res = await fetch(`${BASE_URL}/api${path}`, { method, headers, body: payload });
   let json;
   try {
     json = await res.json();

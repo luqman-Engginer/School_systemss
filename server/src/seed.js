@@ -31,7 +31,7 @@ function seed() {
   if (count > 0) return false;
 
   // ---------- USERS ----------
-  const admin = insert('users', { name: 'Luqman Hafidz', email: 'admin@schoolhub.sch.id', password_hash: hash('admin123'), role: 'ADMIN', phone: '0812-3456-7890', photo: '/img/admin/200/200.svg' });
+  const admin = insert('users', { name: 'Luqman', email: 'admin@schoolhub.sch.id', password_hash: hash('admin123'), role: 'ADMIN', phone: '0812-3456-7890', photo: '/img/admin/200/200.svg' });
   insert('teachers', { user_id: admin, position: 'Kepala Sekolah', subject: 'Manajemen Sekolah', bio: 'Pemimpin akademik SMA Cendekia Muda Jakarta.', public_visible: 1 });
 
   const teachers = [
