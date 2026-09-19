@@ -44,7 +44,13 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   try {
     json = await res.json();
   } catch {
-    json = { success: false, error: 'Respon server tidak valid.' };
+    const ct = res.headers.get('content-type') || '?';
+    json = {
+      success: false,
+      error: res.ok
+        ? `Respon server tidak valid (bukan JSON, ${ct}). Periksa VITE_API_URL.`
+        : `Respon server tidak valid (${res.status}, ${ct}). Pastikan VITE_API_URL menunjuk ke backend API.`,
+    };
   }
   if (!res.ok) {
     const err = new Error(json.error || `Request gagal (${res.status})`);
