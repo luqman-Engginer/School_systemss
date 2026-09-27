@@ -4,8 +4,6 @@ Aplikasi manajemen sekolah terpadu (SMA Cendekia Muda Jakarta): website publik (
 
 ## Struktur
 
-pp
-
 ```
 project_skolah/
 ├── server/          # Backend API (Express, port 5000)
