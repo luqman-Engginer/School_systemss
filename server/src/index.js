@@ -11,7 +11,11 @@ const PORT = process.env.PORT || 5000;
 
 seed();
 
-app.use(cors({ origin: true, credentials: true }));
+const corsOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(cors({ origin: corsOrigins.length ? corsOrigins : true, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
@@ -49,7 +53,7 @@ app.use('/api/teacher', require('./routes/teacher'));
 app.use('/api/student', require('./routes/student'));
 app.use('/api/parent', require('./routes/parent'));
 
-app.get('/api/health', (req, res) => res.json({ success: true, data: { status: 'ok', time: new Date().toISOString() } }));
+app.get('/api/health', (req, res) => res.json({ success: true, data: { status: 'ok', uptime: Math.round(process.uptime()), time: new Date().toISOString() } }));
 
 const PALETTES = [
   ['#6366f1', '#a78bfa'], ['#0ea5e9', '#38bdf8'], ['#10b981', '#6ee7b7'],

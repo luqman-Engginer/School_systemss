@@ -1,14 +1,22 @@
-const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const fs = require('fs');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+let DatabaseSync;
+try {
+  ({ DatabaseSync } = require('node:sqlite'));
+} catch (e) {
+  throw new Error('Runtime tidak mendukung node:sqlite. Gunakan Node.js >= 22.5 (dengan --experimental-sqlite) atau Node.js >= 22.13 / 23+.');
+}
+
+const DB_PATH = process.env.SQLITE_PATH || path.join(__dirname, '..', 'data', 'schoolhub.db');
+const DATA_DIR = path.dirname(DB_PATH);
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new DatabaseSync(path.join(DATA_DIR, 'schoolhub.db'));
+const db = new DatabaseSync(DB_PATH);
 
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
+db.exec('PRAGMA busy_timeout = 5000;');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
