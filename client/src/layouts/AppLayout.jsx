@@ -8,7 +8,7 @@ import {
   AlertTriangle, NotebookPen, Baby, HeartHandshake, Home, Sparkles, Share2, CheckCheck, TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../store';
-import { api } from '../api';
+import { api, mediaUrl } from '../api';
 import { Avatar, useToast, Badge } from '../components/ui';
 
 const NAVS = {
@@ -182,7 +182,7 @@ export default function AppLayout() {
         <div className="relative shrink-0 px-5 h-16 border-b border-white/10 flex items-center gap-3 overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-400/60 to-transparent" />
           <div className="absolute -top-10 -right-10 h-28 w-28 rounded-full bg-indigo-600/20 blur-2xl" />
-          {settings?.logo ? <img src={settings.logo} alt="" className="relative h-9 w-9 rounded-lg object-cover ring-1 ring-white/20" /> : <div className="relative h-9 w-9 rounded-lg bg-gradient-brand grid place-items-center text-white shadow-lg"><GraduationCap size={18} /></div>}
+          {settings?.logo ? <img src={mediaUrl(settings.logo)} alt="" className="relative h-9 w-9 rounded-lg object-cover ring-1 ring-white/20" /> : <div className="relative h-9 w-9 rounded-lg bg-gradient-brand grid place-items-center text-white shadow-lg"><GraduationCap size={18} /></div>}
           <div className="relative min-w-0">
             <p className="text-sm font-extrabold text-white truncate">{settings?.short_name || 'SchoolHub'}</p>
             <p className="text-[10px] uppercase tracking-wider text-slate-400">Digital School Platform</p>

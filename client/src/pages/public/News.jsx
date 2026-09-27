@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Spinner, Badge, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { CalendarDays, ArrowRight, User } from 'lucide-react';
@@ -24,7 +24,7 @@ export default function News() {
           {items.map((n) => (
             <Link key={n.id} to={`/berita/${n.id}`} className="card overflow-hidden card-hover group">
               <div className="relative h-48 overflow-hidden">
-                <img src={n.thumbnail} alt={n.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <img src={mediaUrl(n.thumbnail)} alt={n.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 <Badge tone="indigo" className="absolute left-3 top-3 bg-white/90">{n.category}</Badge>
               </div>
               <div className="p-5">
@@ -51,7 +51,7 @@ export function NewsDetail() {
   return (
     <div>
       <div className="relative bg-slate-900 overflow-hidden">
-        <img src={data.thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover opacity-50" />
+        <img src={mediaUrl(data.thumbnail)} alt="" className="absolute inset-0 h-full w-full object-cover opacity-50" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-indigo-950/60" />
         <div className="relative mx-auto max-w-3xl px-4 sm:px-6 py-20">
           <Badge tone="indigo">{data.category}</Badge>

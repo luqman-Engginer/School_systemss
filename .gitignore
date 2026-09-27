@@ -9,6 +9,12 @@ server/data/*.db
 server/data/*.db-wal
 server/data/*.db-shm
 
+# Database backups (hasil npm run backup)
+server/backups/
+
+# Uploaded files
+server/uploads/
+
 # Logs
 *.log
 npm-debug.log*

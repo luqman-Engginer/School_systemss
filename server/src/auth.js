@@ -7,7 +7,7 @@ function signToken(user) {
   return jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
 }
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) {
@@ -15,7 +15,7 @@ function authenticate(req, res, next) {
   }
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(payload.id);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(payload.id);
     if (!user || user.status !== 'ACTIVE') {
       return res.status(401).json({ success: false, error: 'Akun tidak aktif atau tidak ditemukan.' });
     }
@@ -27,7 +27,7 @@ function authenticate(req, res, next) {
 }
 
 function requireRole(...roles) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ success: false, error: 'Anda tidak memiliki akses ke fitur ini.' });
     }
@@ -35,12 +35,12 @@ function requireRole(...roles) {
   };
 }
 
-function getTeacherId(userId) {
-  return db.prepare('SELECT id FROM teachers WHERE user_id = ?').get(userId)?.id || null;
+async function getTeacherId(userId) {
+  return (await db.prepare('SELECT id FROM teachers WHERE user_id = ?').get(userId))?.id || null;
 }
 
-function getStudentProfile(userId) {
-  return db.prepare('SELECT s.id, s.nis, s.gender, s.birth_date, u.name, u.photo FROM students s JOIN users u ON u.id = s.user_id WHERE s.user_id = ?').get(userId) || null;
+async function getStudentProfile(userId) {
+  return await db.prepare('SELECT s.id, s.nis, s.gender, s.birth_date, u.name, u.photo FROM students s JOIN users u ON u.id = s.user_id WHERE s.user_id = ?').get(userId) || null;
 }
 
 module.exports = { signToken, authenticate, requireRole, JWT_SECRET, db, getTeacherId, getStudentProfile };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Spinner, Badge, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 
@@ -41,7 +41,7 @@ export default function Gallery() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {items.map((g, i) => (
             <button key={g.id} onClick={() => setIdx(i)} className="group relative block w-full overflow-hidden rounded-2xl text-left aspect-[4/3] animate-fade-up focus:outline-none focus:ring-4 focus:ring-indigo-200">
-              <img src={g.image} alt={g.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+              <img src={mediaUrl(g.image)} alt={g.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/85 via-slate-900/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4">
                 <div className="min-w-0">
@@ -63,7 +63,7 @@ export default function Gallery() {
           <button onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % items.length); }} disabled={items.length < 2} className="absolute right-2 sm:right-4 z-10 rounded-full bg-white/10 p-2.5 text-white hover:bg-white/20 transition-colors disabled:opacity-0" aria-label="Berikutnya"><ChevronRight size={22} /></button>
           <div className="relative max-w-4xl w-full animate-fade-up" onClick={(e) => e.stopPropagation()}>
             <div className="overflow-hidden rounded-2xl bg-slate-800">
-              <img src={sel.image} alt={sel.title} className="w-full max-h-[72vh] object-contain" />
+              <img src={mediaUrl(sel.image)} alt={sel.title} className="w-full max-h-[72vh] object-contain" />
             </div>
             <div className="mt-4 flex items-center gap-3">
               <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-brand grid place-items-center text-white"><ImageIcon size={16} /></div>

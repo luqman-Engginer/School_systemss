@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Page, Card, Spinner, Badge, useToast, VideoModal, EmptyState } from '../../components/ui';
 import { BookOpen, Play, CheckCircle2, Circle, Link2, FileText } from 'lucide-react';
 
@@ -56,7 +56,7 @@ export default function StudentMaterials() {
                   {m.description && <p className="mt-3 text-sm text-slate-500 leading-relaxed line-clamp-2">{m.description}</p>}
                   <div className="mt-4 flex flex-wrap gap-2">
                     {m.video_url && <button onClick={() => setVideo(m.video_url)} className="btn-ghost btn-sm"><Play size={13} /> Video</button>}
-                    {m.file_url && <a href={m.file_url} target="_blank" rel="noreferrer" className="btn-ghost btn-sm"><FileText size={13} /> Unduh Modul</a>}
+                    {m.file_url && <a href={mediaUrl(m.file_url)} target="_blank" rel="noreferrer" className="btn-ghost btn-sm"><FileText size={13} /> Unduh Modul</a>}
                     {m.external_link && <a href={m.external_link} target="_blank" rel="noreferrer" className="btn-ghost btn-sm"><Link2 size={13} /> Tautan</a>}
                   </div>
                   {m.progress_status === 'IN_PROGRESS' && <button onClick={() => setStatus(m, 'COMPLETED')} className="mt-3 w-full btn-primary btn-sm">Tandai Selesai</button>}

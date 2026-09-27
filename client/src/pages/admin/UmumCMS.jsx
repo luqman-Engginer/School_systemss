@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Page, Card, Modal, StatusBadge, EmptyState, Badge, useToast, ConfirmModal, Spinner } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 
@@ -218,7 +218,7 @@ function EditForm({ cfg, model, onSubmit, onCancel }) {
           <div key={f.n} className="sm:col-span-2 space-y-1.5">
             <label className="label">{f.l}</label>
             <div className="flex items-center gap-3">
-              {val && <img src={val} alt="" className="h-14 w-20 rounded-lg object-cover border border-slate-200 shake" />}
+              {val && <img src={mediaUrl(val)} alt="" className="h-14 w-20 rounded-lg object-cover border border-slate-200 shake" />}
               <input className="input" value={val} placeholder="https://..." onChange={(e) => setForm({ ...form, [f.n]: e.target.value })} />
             </div>
           </div>

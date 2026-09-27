@@ -5,11 +5,11 @@ const cors = require('cors');
 const multer = require('multer');
 const { seed } = require('./seed');
 const { authenticate } = require('./auth');
+const asyncRoutes = require('./async-routes');
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-seed();
 
 const corsOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
@@ -18,7 +18,7 @@ const corsOrigins = (process.env.CORS_ORIGIN || '')
 app.use(cors({ origin: corsOrigins.length ? corsOrigins : true, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
     const ext = path.extname(file.originalname).toLowerCase();
     const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     cb(null, name);
-  }
+  },
 });
 const upload = multer({
   storage,
@@ -36,7 +36,7 @@ const upload = multer({
     const allowed = /jpeg|jpg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|mp4|zip|mp3/;
     const ok = allowed.test(path.extname(file.originalname).toLowerCase());
     cb(ok ? null : new Error('Tipe file tidak diizinkan.'), ok);
-  }
+  },
 });
 
 app.post('/api/upload', authenticate, upload.single('file'), (req, res) => {
@@ -46,14 +46,33 @@ app.post('/api/upload', authenticate, upload.single('file'), (req, res) => {
 
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/public', require('./routes/public'));
-app.use('/api/admin', require('./routes/admin'));
-app.use('/api/teacher', require('./routes/teacher'));
-app.use('/api/student', require('./routes/student'));
-app.use('/api/parent', require('./routes/parent'));
+app.use('/api/auth', asyncRoutes(require('./routes/auth')));
+app.use('/api/public', asyncRoutes(require('./routes/public')));
+app.use('/api/admin', asyncRoutes(require('./routes/admin')));
+app.use('/api/teacher', asyncRoutes(require('./routes/teacher')));
+app.use('/api/student', asyncRoutes(require('./routes/student')));
+app.use('/api/parent', asyncRoutes(require('./routes/parent')));
 
-app.get('/api/health', (req, res) => res.json({ success: true, data: { status: 'ok', uptime: Math.round(process.uptime()), time: new Date().toISOString() } }));
+// Dipakai monitor uptime eksternal (UptimeRobot, Better Stack, dll). Endpoint
+// ini mengembalikan 503 kalau database tidak terbaca, supaya alarm berbunyi
+// saat proses hidup tetapi layanan tidak bisa melayani data.
+app.get('/api/health', async (req, res) => {
+  let dbOk = true;
+  try {
+    await db.prepare('SELECT 1 AS ok').get();
+  } catch (e) {
+    dbOk = false;
+  }
+  res.status(dbOk ? 200 : 503).json({
+    success: dbOk,
+    data: {
+      status: dbOk ? 'ok' : 'degraded',
+      db: dbOk ? 'readable' : 'unreadable',
+      uptime: Math.round(process.uptime()),
+      time: new Date().toISOString(),
+    },
+  });
+});
 
 const PALETTES = [
   ['#6366f1', '#a78bfa'], ['#0ea5e9', '#38bdf8'], ['#10b981', '#6ee7b7'],
@@ -94,6 +113,57 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, error: err.message || 'Terjadi kesalahan server.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`SchoolHub API running at http://localhost:${PORT}`);
-});
+let server = null;
+
+// Platform seperti Railway/Render/Fly mengirim SIGTERM sebelum menghentikan
+// proses. Menutup pool koneksi dengan rapi mencegah koneksi yatim dan membuat
+// MariaDB/MySQL siap menerima koneksi baru begitu proses berikutnya naik.
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[shutdown] ${signal} diterima, menutup server...`);
+
+  const forceExit = setTimeout(() => {
+    console.error('[shutdown] masih ada koneksi terbuka, keluar paksa.');
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
+
+  if (!server) return process.exit(0);
+  server.close(async () => {
+    try {
+      await db.close();
+      console.log('[shutdown] server berhenti, pool database ditutup bersih.');
+    } catch (e) {
+      console.error('[shutdown] gagal menutup database:', e.message);
+    }
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Skema dan seed butuh koneksi yang hidup, jadi dijalankan setelah modul dimuat
+// dan server baru menerima request bila penyiapan berhasil.
+async function bootstrap() {
+  try {
+    await db.init();
+    const seeded = await seed();
+    if (seeded) console.log('[storage] seed data awal dibuat.');
+  } catch (err) {
+    console.error('[startup] gagal menyiapkan database:', err.message);
+    process.exit(1);
+  }
+
+  server = app.listen(PORT, () => {
+    const host = process.env.DB_HOST || '127.0.0.1';
+    const name = process.env.DB_NAME || 'schoolhub';
+    console.log(`SchoolHub API running at http://localhost:${PORT}`);
+    console.log(`[storage] database : mysql://${host}:${process.env.DB_PORT || 3306}/${name}`);
+    console.log(`[storage] uploads  : ${UPLOAD_DIR}`);
+  });
+}
+
+bootstrap();

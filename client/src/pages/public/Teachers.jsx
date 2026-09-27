@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Spinner } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { BookOpen } from 'lucide-react';
@@ -16,7 +16,7 @@ export default function Teachers() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.map((t) => (
             <div key={t.name} className="card p-6 card-hover flex gap-5">
-              <img src={t.photo} alt={t.name} className="h-20 w-20 rounded-2xl object-cover shrink-0" />
+              <img src={mediaUrl(t.photo)} alt={t.name} className="h-20 w-20 rounded-2xl object-cover shrink-0" />
               <div className="min-w-0">
                 <h3 className="font-extrabold text-slate-900 text-sm leading-snug">{t.name}</h3>
                 <p className="mt-0.5 text-xs font-bold text-indigo-600">{t.position}</p>

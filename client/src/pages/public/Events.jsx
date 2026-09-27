@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Spinner, Badge, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { CalendarDays, MapPin, Clock, ArrowRight, Users, Ticket } from 'lucide-react';
@@ -35,7 +35,7 @@ export default function Events() {
               {upcoming.map((e) => (
                 <Link key={e.id} to={`/event/${e.id}`} className="card overflow-hidden card-hover group flex flex-col sm:flex-row">
                   <div className="relative sm:w-52 sm:shrink-0 h-48 sm:h-auto overflow-hidden">
-                    <img src={e.poster} alt={e.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                    <img src={mediaUrl(e.poster)} alt={e.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 to-transparent" />
                     <div className="absolute left-3 top-3"><Badge tone={EVENT_TONE(e)} className="bg-white/90 backdrop-blur">{e.status === 'PUBLISHED' ? 'Akan Datang' : e.status}</Badge></div>
                   </div>
@@ -92,7 +92,7 @@ export function EventsDetail() {
   return (
     <div>
       <div className="relative bg-slate-900 overflow-hidden">
-        <img src={data.poster} alt="" className="absolute inset-0 h-full w-full object-cover opacity-45" />
+        <img src={mediaUrl(data.poster)} alt="" className="absolute inset-0 h-full w-full object-cover opacity-45" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-indigo-950/40" />
         <div className="relative mx-auto max-w-4xl px-4 sm:px-6 py-24">
           <Badge tone="indigo" className="bg-white/15 text-white backdrop-blur">{data.status}</Badge>

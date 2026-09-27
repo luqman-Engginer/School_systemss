@@ -1,5 +1,6 @@
 import { Component, createContext, useContext, useEffect, useState } from 'react';
 import { X, Inbox, CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
+import { mediaUrl } from '../api';
 
 export function Card({ className = '', children, ...rest }) {
   return <div className={`card ${className}`} {...rest}>{children}</div>;
@@ -170,7 +171,7 @@ export function ToastProvider({ children }) {
 export function Avatar({ src, name, size = 40, className = '' }) {
   const initials = (name || '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   return src ? (
-    <img src={src} alt={name} style={{ width: size, height: size }} className={`rounded-full object-cover ${className}`} />
+    <img src={mediaUrl(src)} alt={name} style={{ width: size, height: size }} className={`rounded-full object-cover ${className}`} />
   ) : (
     <div style={{ width: size, height: size }} className={`rounded-full grid place-items-center bg-gradient-brand text-white font-bold text-sm ${className}`}>{initials}</div>
   );
@@ -219,7 +220,7 @@ export function VideoModal({ url, onClose, title }) {
   return (
     <Modal open onClose={onClose} title={title || 'Video Pembelajaran'} size="lg">
       <div className="aspect-video rounded-xl overflow-hidden bg-slate-900">
-        <iframe className="w-full h-full" src={url} title="Video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+        <iframe className="w-full h-full" src={mediaUrl(url)} title="Video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
       </div>
     </Modal>
   );

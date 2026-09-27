@@ -1,12 +1,12 @@
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 
-function insert(table, data) {
+async function insert(table, data) {
   const keys = Object.keys(data);
   const cols = keys.join(', ');
   const ph = keys.map(() => '?').join(', ');
   const stmt = db.prepare(`INSERT INTO ${table} (${cols}) VALUES (${ph})`);
-  const res = stmt.run(...keys.map((k) => data[k]));
+  const res = await stmt.run(...keys.map((k) => data[k]));
   return Number(res.lastInsertRowid);
 }
 
@@ -26,13 +26,13 @@ const dateOffsetPlus = (daysAhead) => {
   return `${d.getFullYear()}-${n(d.getMonth() + 1)}-${n(d.getDate())}`;
 };
 
-function seed() {
-  const count = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
+async function seed() {
+  const count = (await db.prepare('SELECT COUNT(*) AS c FROM users').get()).c;
   if (count > 0) return false;
 
   // ---------- USERS ----------
-  const admin = insert('users', { name: 'Luqman', email: 'admin@schoolhub.sch.id', password_hash: hash('admin123'), role: 'ADMIN', phone: '0812-3456-7890', photo: '/img/admin/200/200.svg' });
-  insert('teachers', { user_id: admin, position: 'Kepala Sekolah', subject: 'Manajemen Sekolah', bio: 'Pemimpin akademik SMA Cendekia Muda Jakarta.', public_visible: 1 });
+  const admin = await insert('users', { name: 'Luqman', email: 'admin@schoolhub.sch.id', password_hash: hash('admin123'), role: 'ADMIN', phone: '0812-3456-7890', photo: '/img/admin/200/200.svg' });
+  await insert('teachers', { user_id: admin, position: 'Kepala Sekolah', subject: 'Manajemen Sekolah', bio: 'Pemimpin akademik SMA Cendekia Muda Jakarta.', public_visible: 1 });
 
   const teachers = [
     { name: 'Rani Rahmawati, S.Pd.', email: 'rani@schoolhub.sch.id', subject: 'Matematika', position: 'Guru Matematika', bio: 'Guru Matematika dengan pengalaman 10 tahun, fokus pada pembelajaran kontekstual dan menyenangkan.' },
@@ -45,25 +45,25 @@ function seed() {
   const teacherIds = [];
   const teacherUsers = [];
   for (const t of teachers) {
-    const uid = insert('users', { name: t.name, email: t.email, password_hash: hash('guru123'), role: 'TEACHER', phone: `0812-0000-${1000 + teacherIds.length}`, photo: `/img/guru${1 + teacherIds.length}/200/200.svg` });
+    const uid = await insert('users', { name: t.name, email: t.email, password_hash: hash('guru123'), role: 'TEACHER', phone: `0812-0000-${1000 + teacherIds.length}`, photo: `/img/guru${1 + teacherIds.length}/200/200.svg` });
     teacherUsers.push(uid);
-    teacherIds.push(insert('teachers', { user_id: uid, position: t.position, subject: t.subject, bio: t.bio, public_visible: 1 }));
+    teacherIds.push(await insert('teachers', { user_id: uid, position: t.position, subject: t.subject, bio: t.bio, public_visible: 1 }));
   }
 
   // ---------- ACADEMIC ----------
-  const year = insert('academic_years', { name: '2026/2027', start_date: '2026-07-13', end_date: '2027-06-25', is_active: 1, status: 'ACTIVE' });
+  const year = await insert('academic_years', { name: '2026/2027', start_date: '2026-07-13', end_date: '2027-06-25', is_active: 1, status: 'ACTIVE' });
 
   const programNames = ['IPA', 'IPS'];
   const programIds = {};
-  for (const p of programNames) programIds[p] = insert('programs', { name: `Ilmu Pengetahuan ${p === 'IPA' ? 'Alam' : 'Sosial'}`, code: p, description: `Program ${p} — jalur peminatan bagi peserta didik untuk mendalami ${p === 'IPA' ? 'sains, matematika dan teknologi' : 'sosial, ekonomi dan humaniora'}.`, status: 'PUBLISHED' });
+  for (const p of programNames) programIds[p] = await insert('programs', { name: `Ilmu Pengetahuan ${p === 'IPA' ? 'Alam' : 'Sosial'}`, code: p, description: `Program ${p} — jalur peminatan bagi peserta didik untuk mendalami ${p === 'IPA' ? 'sains, matematika dan teknologi' : 'sosial, ekonomi dan humaniora'}.`, status: 'PUBLISHED' });
 
   const classNames = ['X IPA 1', 'X IPA 2', 'XI IPA 1', 'XI IPA 2'];
   const classIds = {};
-  classNames.forEach((c, i) => {
+  for (const [i, c] of classNames.entries()) {
     const grade = c.split(' ')[0];
     const programCode = c.split(' ')[1];
-    classIds[c] = insert('classes', { name: c, academic_year_id: year, program_id: programIds[programCode], grade, homeroom_teacher_id: teacherIds[i % teacherIds.length], status: 'ACTIVE' });
-  });
+    classIds[c] = await insert('classes', { name: c, academic_year_id: year, program_id: programIds[programCode], grade, homeroom_teacher_id: teacherIds[i % teacherIds.length], status: 'ACTIVE' });
+  };
 
   // ---------- SUBJECTS ----------
   const subjectDefs = [
@@ -78,14 +78,14 @@ function seed() {
   for (const s of subjectDefs) {
     for (const [cn, cid] of Object.entries(classIds)) {
       if (!cn.startsWith('X')) continue;
-      subjectIds.push(insert('subjects', { name: s.name, code: s.code, description: `Mata pelajaran ${s.name} untuk ${cn}.`, teacher_id: teacherIds[s.teacher], class_id: cid, status: 'ACTIVE' }));
+      subjectIds.push(await insert('subjects', { name: s.name, code: s.code, description: `Mata pelajaran ${s.name} untuk ${cn}.`, teacher_id: teacherIds[s.teacher], class_id: cid, status: 'ACTIVE' }));
     }
   }
   // extra subjects for XI
   for (const s of subjectDefs.slice(0, 3)) {
     for (const [cn, cid] of Object.entries(classIds)) {
       if (!cn.startsWith('XI')) continue;
-      subjectIds.push(insert('subjects', { name: s.name, code: s.code, description: `Mata pelajaran ${s.name} untuk ${cn}.`, teacher_id: teacherIds[s.teacher], class_id: cid, status: 'ACTIVE' }));
+      subjectIds.push(await insert('subjects', { name: s.name, code: s.code, description: `Mata pelajaran ${s.name} untuk ${cn}.`, teacher_id: teacherIds[s.teacher], class_id: cid, status: 'ACTIVE' }));
     }
   }
 
@@ -98,13 +98,13 @@ function seed() {
   ];
   const studentIds = [];
   const studentMap = {};
-  studentDefs.forEach((s, i) => {
-    const uid = insert('users', { name: s[0], email: `${s[0].toLowerCase().replace(/[^a-z]/g, '.')}@student.sch.id`, password_hash: hash('siswa123'), role: 'STUDENT', phone: `0821-0000-${2000 + i}`, photo: `/img/siswa${i + 1}/200/200.svg` });
-    insert('students', { user_id: uid, nis: `2026${String(100 + i)}`, gender: i % 3 === 0 ? 'P' : 'L', birth_date: `2010-${n(1 + (i % 12))}-${n(1 + ((i * 3) % 28))}` });
-    insert('student_classes', { student_id: uid, class_id: classIds[s[1]], academic_year_id: year, status: 'ACTIVE' });
+  for (const [i, s] of studentDefs.entries()) {
+    const uid = await insert('users', { name: s[0], email: `${s[0].toLowerCase().replace(/[^a-z]/g, '.')}@student.sch.id`, password_hash: hash('siswa123'), role: 'STUDENT', phone: `0821-0000-${2000 + i}`, photo: `/img/siswa${i + 1}/200/200.svg` });
+    await insert('students', { user_id: uid, nis: `2026${String(100 + i)}`, gender: i % 3 === 0 ? 'P' : 'L', birth_date: `2010-${n(1 + (i % 12))}-${n(1 + ((i * 3) % 28))}` });
+    await insert('student_classes', { student_id: uid, class_id: classIds[s[1]], academic_year_id: year, status: 'ACTIVE' });
     studentIds.push(uid);
     studentMap[s[0]] = uid;
-  });
+  };
 
   // ---------- PARENTS ----------
   const parentDefs = [
@@ -112,12 +112,12 @@ function seed() {
     ['Bapak Surya Darma', 'dinda'], ['Ibu Maya Sari', 'eko'], ['Bapak Wahyu Hidayat', 'fajar']
   ];
   const parentIds = [];
-  parentDefs.forEach((p, i) => {
-    const uid = insert('users', { name: p[0], email: `ortu.${p[1]}@family.sch.id`, password_hash: hash('ortu123'), role: 'PARENT', phone: `0813-0000-${3000 + i}`, photo: `/img/ortu${i + 1}/200/200.svg` });
-    insert('parents', { user_id: uid, occupation: i % 2 ? 'Wiraswasta' : 'Karyawan Swasta' });
-    insert('parent_student', { parent_id: uid, student_id: studentIds[i], relation: i % 2 ? 'IBU' : 'AYAH' });
+  for (const [i, p] of parentDefs.entries()) {
+    const uid = await insert('users', { name: p[0], email: `ortu.${p[1]}@family.sch.id`, password_hash: hash('ortu123'), role: 'PARENT', phone: `0813-0000-${3000 + i}`, photo: `/img/ortu${i + 1}/200/200.svg` });
+    await insert('parents', { user_id: uid, occupation: i % 2 ? 'Wiraswasta' : 'Karyawan Swasta' });
+    await insert('parent_student', { parent_id: uid, student_id: studentIds[i], relation: i % 2 ? 'IBU' : 'AYAH' });
     parentIds.push(uid);
-  });
+  };
 
   // ---------- SCHEDULES ----------
   const times = [
@@ -129,13 +129,13 @@ function seed() {
   for (let day = 1; day <= 6; day++) {
     for (let slot = 0; slot < 5; slot++) {
       const subj = subjectIds[(si++) % subjectIds.length];
-      const s = db.prepare('SELECT class_id, teacher_id FROM subjects WHERE id = ?').get(subj);
-      insert('schedules', { class_id: s.class_id, subject_id: subj, teacher_id: s.teacher_id, day, start_time: times[slot][0], end_time: times[slot][1], room: rooms[slot], status: 'ACTIVE' });
+      const s = await db.prepare('SELECT class_id, teacher_id FROM subjects WHERE id = ?').get(subj);
+      await insert('schedules', { class_id: s.class_id, subject_id: subj, teacher_id: s.teacher_id, day, start_time: times[slot][0], end_time: times[slot][1], room: rooms[slot], status: 'ACTIVE' });
     }
   }
 
   // ---------- SCHOOL SETTINGS ----------
-  insert('school_settings', {
+  await insert('school_settings', {
     school_name: 'SMA Cendekia Muda Jakarta',
     short_name: 'Cendekia Muda',
     slogan: 'Tumbuh · Belajar · Berkarya',
@@ -174,27 +174,27 @@ function seed() {
     ['Kelas X Mengikuti Outing Class ke Museum Nasional', 'activity', dateOffsetPlus(6), 'Sebanyak 240 siswa kelas X mengikuti kegiatan outing class ke Museum Nasional. Kegiatan ini merupakan bagian dari pembelajaran Sejarah interaktif yang mendorong siswa belajar langsung dari sumber sejarah.', '/img/news3/900/500.svg'],
     ['Workshop Penulisan Karya Ilmiah bagi Siswa KIR', 'academic', dateOffsetPlus(9), 'Kegiatan workshop penulisan karya ilmiah digelar untuk membekali anggota Karya Ilmiah Remaja (KIR) dengan kemampuan metodologi riset dan penulisan laporan.', '/img/news4/900/500.svg']
   ];
-  newsItems.forEach(([title, category, publishedAt, content, thumb], i) => {
-    insert('news', { title, category, content, thumbnail: thumb, author_id: teacherUsers[5], status: 'PUBLISHED', slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), published_at: publishedAt });
-  });
+  for (const [i, [title, category, publishedAt, content, thumb]] of newsItems.entries()) {
+    await insert('news', { title, category, content, thumbnail: thumb, author_id: teacherUsers[5], status: 'PUBLISHED', slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), published_at: publishedAt });
+  };
 
   const eventDefs = [
     ['Ujian Tengah Semester Ganjil', 'Pelaksanaan Ujian Tengah Semester (UTS) Ganjil Tahun Ajaran 2026/2027 untuk seluruh jenjang.', dateOffsetPlus(12), 'Day 0'], ['Pekan Olahraga Sekolah', 'Kegiatan olahraga antar kelas meliputi futsal, basket, voli, dan atletik.', dateOffsetPlus(15), 'Day 0'], ['Seminar Pendidikan Karakter', 'Seminar bersama orang tua dan guru tentang penguatan karakter peserta didik.', dateOffsetPlus(20), 'Day 0'], ['Pensi Cendekia 2026', 'Pentas seni mengakhiri tahun ajaran — musik, tari, teater, dan bazar karya siswa.', dateOffsetPlus(45), 'Day 0']
   ];
-  eventDefs.forEach(([title, description, date, loc], i) => {
+  for (const [i, [title, description, date, loc]] of eventDefs.entries()) {
     const endD = dateOffsetPlus(14 + i);
-    insert('events', { title, description, date, start_time: '08:00', end_time: '14:00', location: `${loc === 'Day 0' ? 'Kampus Cendekia Muda' : ''}`, poster: `/img/event${i + 1}/800/500.svg`, status: 'PUBLISHED' });
-  });
+    await insert('events', { title, description, date, start_time: '08:00', end_time: '14:00', location: `${loc === 'Day 0' ? 'Kampus Cendekia Muda' : ''}`, poster: `/img/event${i + 1}/800/500.svg`, status: 'PUBLISHED' });
+  };
 
   const galleryCats = ['Kegiatan Sekolah', 'Pembelajaran', 'Event', 'Prestasi', 'Ekstrakurikuler', 'Fasilitas'];
   for (let i = 0; i < 9; i++) {
-    insert('gallery', { image: `/img/galeri${i + 1}/800/600.svg`, title: `Momen Inspiratif ${i + 1}`, description: 'Dokumentasi kegiatan di SMA Cendekia Muda Jakarta.', category: galleryCats[i % galleryCats.length], status: (i % 5 === 0 ? 'DRAFT' : 'PUBLISHED') });
+    await insert('gallery', { image: `/img/galeri${i + 1}/800/600.svg`, title: `Momen Inspiratif ${i + 1}`, description: 'Dokumentasi kegiatan di SMA Cendekia Muda Jakarta.', category: galleryCats[i % galleryCats.length], status: (i % 5 === 0 ? 'DRAFT' : 'PUBLISHED') });
   }
 
   const achievementDefs = [
     ['Juara 1 Robotik Nasional', 'Teknologi', 'Tim Robotik Cendekia', 'Lomba Robotik Nasional', 'Juara 1', '2026', 'Kemenangan atas 120 tim se-Indonesia.'], ['Juara 2 Debat Bahasa Inggris', 'Akademik', 'Erika & Kevin', 'Debat Bahasa Inggris se-Jabodetabek', 'Juara 2', '2026', ''], ['Medali Emas OSN Matematika', 'Akademik', 'Citra Ayu', 'Olimpiade Sains Nasional', 'Medali Emas', '2026', ''], ['Juara 3 Futsal Pelajar', 'Olahraga', 'Tim Futsal Putra', 'Piala Wali Kota Se-Jakarta', 'Juara 3', '2025', '']
   ];
-  achievementDefs.forEach((a, i) => insert('achievements', { title: a[0], category: a[1], student_team: a[2], competition: a[3], rank: a[4], year: a[5], description: a[6], documentation: `/img/prestasi${i + 1}/800/500.svg`, status: 'PUBLISHED' }));
+  achievementDefs.forEach(async (a, i) => await insert('achievements', { title: a[0], category: a[1], student_team: a[2], competition: a[3], rank: a[4], year: a[5], description: a[6], documentation: `/img/prestasi${i + 1}/800/500.svg`, status: 'PUBLISHED' }));
 
   const faqDefs = [
     ['Umum', 'Apa itu SchoolHub?', 'SchoolHub adalah platform digital sekolah terpadu yang menghubungkan admin, guru, murid, dan wali murid dalam satu sistem pembelajaran, komunikasi, dan monitoring.'],
@@ -204,7 +204,7 @@ function seed() {
     ['Teknis', 'Apakah SchoolHub bisa diakses dari HP?', 'Tentu. SchoolHub dirancang responsif dan dapat diakses dari laptop, tablet, maupun smartphone hanya dengan browser.'],
     ['Umum', 'Kepada siapa saya bisa menghubungi sekolah?', 'Silakan hubungi nomor telepon/kontak yang tersedia di halaman Kontak, atau melalui WhatsApp resmi sekolah.']
   ];
-  faqDefs.forEach((f, i) => insert('faqs', { category: f[0], question: f[1], answer: f[2], sort_order: i, active: 1 }));
+  faqDefs.forEach(async (f, i) => await insert('faqs', { category: f[0], question: f[1], answer: f[2], sort_order: i, active: 1 }));
 
   const rulesDefs = [
     ['Ketertiban', 'Kedisiplinan Waktu', 'Peserta didik hadir di sekolah paling lambat 15 menit sebelum jam pelajaran dimulai. Keterlambatan akan dicatat dan dikonfirmasikan kepada wali murid.'],
@@ -214,7 +214,7 @@ function seed() {
     ['Teknologi', 'Penggunaan Telepon Genggam', 'Telepon genggam hanya boleh digunakan untuk keperluan pembelajaran atas izin guru. Tidak diizinkan untuk mengambil gambar tanpa izin pihak terkait.'],
     ['Etika', 'Etika Berkomunikasi', 'Sopan santun dalam berkomunikasi lisan dan tulisan, termasuk di ruang diskusi digital, adalah bagian dari kedisiplinan yang dijunjung tinggi.']
   ];
-  rulesDefs.forEach((r, i) => insert('school_rules', { title: r[1], category: r[0], content: r[2], status: 'PUBLISHED', version: '1.0', effective_date: '2026-07-13' }));
+  rulesDefs.forEach(async (r, i) => await insert('school_rules', { title: r[1], category: r[0], content: r[2], status: 'PUBLISHED', version: '1.0', effective_date: '2026-07-13' }));
 
   // ---------- LEARNING MATERIALS ----------
   const materialTitles = {
@@ -226,33 +226,33 @@ function seed() {
     'Sejarah': [['Manusia dan Sejarah', 3], ['Peradaban Awal Nusantara', 4]]
   };
   const subjIds = {};
-  subjectIds.forEach((id) => {
-    const s = db.prepare('SELECT name FROM subjects WHERE id = ?').get(id);
+  for (const id of subjectIds) {
+    const s = await db.prepare('SELECT name FROM subjects WHERE id = ?').get(id);
     subjIds[s.name] = subjIds[s.name] || [];
     subjIds[s.name].push(id);
-  });
-  const classIdFor = (subjId) => db.prepare('SELECT class_id FROM subjects WHERE id = ?').get(subjId).class_id;
-  const teacherIdFor = (subjId) => db.prepare('SELECT teacher_id FROM subjects WHERE id = ?').get(subjId).teacher_id;
+  };
+  const classIdFor = async (subjId) => (await db.prepare('SELECT class_id FROM subjects WHERE id = ?').get(subjId)).class_id;
+  const teacherIdFor = async (subjId) => (await db.prepare('SELECT teacher_id FROM subjects WHERE id = ?').get(subjId)).teacher_id;
 
   const allMaterialIds = [];
   for (const [subjName, mats] of Object.entries(materialTitles)) {
     const ids = subjIds[subjName] || [];
-    mats.forEach((mat, mi) => {
+    for (const [mi, mat] of mats.entries()) {
       const subjId = ids[mi % ids.length];
-      const mid = insert('learning_materials', {
+      const mid = await insert('learning_materials', {
         title: mat[0], description: `Materi pembelajaran ${mat[0]} yang dilengkapi modul, video, dan latihan soal.`, file_url: '', video_url: `https://www.youtube.com/watch?v=dQw4w9WgXcQ`.replace('dQw4w9WgXcQ', 'M7lc1UVf-VE'),
-        subject_id: subjId, class_id: classIdFor(subjId), teacher_id: teacherIdFor(subjId), meeting: mat[1], status: 'PUBLISHED', published_at: dateOffset(30 - mi * 3), created_at: dateOffset(32 - mi * 3)
+        subject_id: subjId, class_id: await classIdFor(subjId), teacher_id: await teacherIdFor(subjId), meeting: mat[1], status: 'PUBLISHED', published_at: dateOffset(30 - mi * 3), created_at: dateOffset(32 - mi * 3)
       });
       allMaterialIds.push(mid);
-    });
+    };
   }
 
   // progress: mark some completed, some missed, some not started
-  studentIds.forEach((sid, idx) => {
-    allMaterialIds.forEach((mid, mi) => {
-      const mat = db.prepare('SELECT class_id FROM learning_materials WHERE id = ?').get(mid);
-      const myClass = db.prepare('SELECT class_id FROM student_classes WHERE student_id = ?').get(sid);
-      if (mat.class_id !== myClass.class_id) return;
+  for (const [idx, sid] of studentIds.entries()) {
+    for (const [mi, mid] of allMaterialIds.entries()) {
+      const mat = await db.prepare('SELECT class_id FROM learning_materials WHERE id = ?').get(mid);
+      const myClass = await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ?').get(sid);
+      if (mat.class_id !== myClass.class_id) continue;
       const rem = (idx * 7 + mi * 3) % 10;
       let st = 'NOT_STARTED';
       if (rem < 5) st = 'COMPLETED';
@@ -260,9 +260,9 @@ function seed() {
       else if (rem < 8) st = 'IN_PROGRESS';
       const started = st !== 'NOT_STARTED' ? dateOffset((rem + 2) * 2) : null;
       const done = st === 'COMPLETED' ? dateOffset((rem + 2) * 2 - 1) : null;
-      insert('learning_progress', { student_id: sid, material_id: mid, status: st, started_at: started, completed_at: done, review_count: st === 'COMPLETED' ? 1 : 0, last_reviewed: done });
-    });
-  });
+      await insert('learning_progress', { student_id: sid, material_id: mid, status: st, started_at: started, completed_at: done, review_count: st === 'COMPLETED' ? 1 : 0, last_reviewed: done });
+    };
+  };
 
   // ---------- ASSIGNMENTS ----------
   const assignmentDefs = [
@@ -272,19 +272,19 @@ function seed() {
     ['Tugas 4: Program Perhitungan Gaji', 'Buat program sederhana menghitung gaji dengan percabangan.', 'Kirim file kode program dan tangkapan layar hasilnya.', 100, 'Informatika']
   ];
   const assignmentsSeeded = [];
-  assignmentDefs.forEach((ad, i) => {
+  for (const [i, ad] of assignmentDefs.entries()) {
     const name = ad[4];
     const ids = subjIds[name] || [];
     const subjId = ids[i % ids.length];
-    const aid = insert('assignments', {
-      title: ad[0], description: ad[1], instructions: ad[2], subject_id: subjId, class_id: classIdFor(subjId), teacher_id: teacherIdFor(subjId),
+    const aid = await insert('assignments', {
+      title: ad[0], description: ad[1], instructions: ad[2], subject_id: subjId, class_id: await classIdFor(subjId), teacher_id: await teacherIdFor(subjId),
       deadline: dateOffsetPlus(5 + i * 3), max_score: ad[3], status: 'PUBLISHED', created_at: dateOffset(3)
     });
     assignmentsSeeded.push(aid);
     // submissions for some students
-    studentIds.forEach((sid, si) => {
-      const myClass = db.prepare('SELECT class_id FROM student_classes WHERE student_id = ?').get(sid);
-      if (myClass.class_id !== classIdFor(subjId)) return;
+    for (const [si, sid] of studentIds.entries()) {
+      const myClass = await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ?').get(sid);
+      if (myClass.class_id !== await classIdFor(subjId)) continue;
       const rems = (si * 5 + i * 2) % 8;
       let status = 'SUBMITTED';
       let subAt = dateOffset(1);
@@ -295,28 +295,28 @@ function seed() {
         grade = 70 + ((si * 11 + i * 7) % 30);
         feedback = 'Kerja bagus! Perhatikan cara penulisan langkah penyelesaian agar lebih runtut.';
       } else if (rems < 5) { status = 'NOT_STARTED'; subAt = null; }
-      insert('assignment_submissions', { assignment_id: aid, student_id: sid, content: ad[1], attachment: 'https://picsum.photos/seed/file' + i + si, submitted_at: subAt, status, grade, max_score: ad[3], feedback });
-    });
-  });
+      await insert('assignment_submissions', { assignment_id: aid, student_id: sid, content: ad[1], attachment: 'https://picsum.photos/seed/file' + i + si, submitted_at: subAt, status, grade, max_score: ad[3], feedback });
+    };
+  };
 
   // ---------- ATTENDANCE ----------
-  studentIds.forEach((sid, i) => {
+  for (const [i, sid] of studentIds.entries()) {
     for (let d = 0; d < 20; d++) {
       const dt = dateOffset(d);
       const dow = new Date(dt).getDay();
       if (dow === 0 || dow === 6) continue;
       const r = (i * 13 + d * 5) % 10;
       const status = r < 6 ? 'PRESENT' : r < 7 ? 'LATE' : r < 8 ? 'SICK' : r < 9 ? 'EXCUSED' : 'ABSENT';
-      insert('attendance', { student_id: sid, class_id: db.prepare('SELECT class_id FROM student_classes WHERE student_id = ?').get(sid).class_id, teacher_id: teacherUsers[i % 2], date: dt, status, check_in_time: status === 'LATE' ? '07:45' : '06:55', note: '' });
+      await insert('attendance', { student_id: sid, class_id: (await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ?').get(sid)).class_id, teacher_id: teacherUsers[i % 2], date: dt, status, check_in_time: status === 'LATE' ? '07:45' : '06:55', note: '' });
     }
-  });
+  };
 
   // ---------- DISCIPLINE ----------
-  studentIds.forEach((sid, i) => {
+  for (const [i, sid] of studentIds.entries()) {
     if (i % 5 === 1) {
-      insert('discipline_records', { student_id: sid, category: 'Kedisiplinan', description: 'Terlambat masuk kelas tanpa keterangan.', point: 10, date: dateOffset(6), reporter_id: teacherUsers[1], status: 'RESOLVED', notes: 'Sudah diberikan pembinaan oleh wali kelas.' });
+      await insert('discipline_records', { student_id: sid, category: 'Kedisiplinan', description: 'Terlambat masuk kelas tanpa keterangan.', point: 10, date: dateOffset(6), reporter_id: teacherUsers[1], status: 'RESOLVED', notes: 'Sudah diberikan pembinaan oleh wali kelas.' });
     }
-  });
+  };
 
   // ---------- QUIZZES ----------
   const quizDefs = [
@@ -345,43 +345,43 @@ function seed() {
       ]
     }
   ];
-  quizDefs.forEach((qd) => {
+  for (const qd of quizDefs) {
     const subjId = subjIds[qd.subject][0];
-    const qid = insert('quizzes', { title: qd.title, description: `Kuis singkat ${qd.subject} untuk mengukur pemahaman.`, subject_id: subjId, class_id: classIdFor(subjId), teacher_id: teacherIdFor(subjId), time_limit: 15, passing_score: 70, status: 'PUBLISHED' });
-    qd.qs.forEach((qq) => insert('questions', { quiz_id: qid, question: qq[0], type: 'MULTIPLE', options: qq[1], correct_answer: qq[2], score: 25 }));
-  });
+    const qid = await insert('quizzes', { title: qd.title, description: `Kuis singkat ${qd.subject} untuk mengukur pemahaman.`, subject_id: subjId, class_id: await classIdFor(subjId), teacher_id: await teacherIdFor(subjId), time_limit: 15, passing_score: 70, status: 'PUBLISHED' });
+    qd.qs.forEach(async (qq) => await insert('questions', { quiz_id: qid, question: qq[0], type: 'MULTIPLE', options: qq[1], correct_answer: qq[2], score: 25 }));
+  };
 
   // ---------- ASPIRATIONS ----------
   const aspirationDefs = [
     ['Saran: Penambahan Fasilitas Charger di Perpustakaan', 'Mohon dapat disediakan fasilitas charger di area perpustakaan agar siswa dapat mengisi daya laptop.', 'Sarpras'], ['Saran: Konten Pembelajaran Lebih Interaktif', 'Saran agar materi Informatika lebih banyak praktik langsung.', 'Kurikulum'], ['Keluhan: Jadwal Olahraga Bentrok', 'Jadwal olahraga kelas kami bentrok dengan kegiatan ekstrakurikuler.', 'Jadwal'], ['Ide: Adakan Kompetisi Desain Poster Sekolah', 'Agar kreativitas siswa tersalurkan, kami mengusulkan diadakan kompetisi desain poster bertema hari kemerdekaan.', 'Saran']
   ];
-  aspirationDefs.forEach((a, i) => {
-    insert('aspirations', { student_id: studentIds[i], title: a[0], content: `${a[1]} — Aspirasi ${i + 1} dari murid kami.`, category: a[2], anonymous: i === 2 ? 1 : 0, status: ['SUBMITTED', 'IN_PROGRESS', 'RESOLVED', 'UNDER_REVIEW'][i], admin_response: i === 2 ? 'Terima kasih atas masukannya. Kami sedang berkoordinasi dengan bidang kesiswaan untuk merevisi jadwal.' : '', created_at: dateOffset(12 - i * 3), updated_at: dateOffset(10 - i * 2) });
-  });
+  for (const [i, a] of aspirationDefs.entries()) {
+    await insert('aspirations', { student_id: studentIds[i], title: a[0], content: `${a[1]} — Aspirasi ${i + 1} dari murid kami.`, category: a[2], anonymous: i === 2 ? 1 : 0, status: ['SUBMITTED', 'IN_PROGRESS', 'RESOLVED', 'UNDER_REVIEW'][i], admin_response: i === 2 ? 'Terima kasih atas masukannya. Kami sedang berkoordinasi dengan bidang kesiswaan untuk merevisi jadwal.' : '', created_at: dateOffset(12 - i * 3), updated_at: dateOffset(10 - i * 2) });
+  };
 
   // ---------- DISCUSSIONS ----------
-  const room1 = insert('discussion_rooms', { title: 'Ruang Diskusi Matematika', topic: 'Tanya jawab materi Bab 1–3', description: 'Diskusi terbuka untuk seluruh siswa kelas X dan guru Matematika.', creator_id: teacherUsers[0], type: 'CLASS_DISCUSSION', start_date: dateOffset(10), status: 'ACTIVE' });
-  const room2 = insert('discussion_rooms', { title: 'Ruang Informasi Wali Murid', topic: 'Informasi perkembangan dan kegiatan siswa', description: 'Ruang komunikasi khusus wali murid dengan wali kelas.', creator_id: teacherUsers[1], type: 'TEACHER_PARENT', start_date: dateOffset(10), status: 'ACTIVE' });
-  insert('discussion_members', { room_id: room1, user_id: teacherUsers[0] });
-  insert('discussion_members', { room_id: room2, user_id: teacherUsers[1] });
-  studentIds.slice(0, 12).forEach((sid) => insert('discussion_members', { room_id: room1, user_id: sid }));
-  insert('discussion_members', { room_id: room2, user_id: parentIds[0] });
-  insert('discussion_members', { room_id: room2, user_id: parentIds[1] });
+  const room1 = await insert('discussion_rooms', { title: 'Ruang Diskusi Matematika', topic: 'Tanya jawab materi Bab 1–3', description: 'Diskusi terbuka untuk seluruh siswa kelas X dan guru Matematika.', creator_id: teacherUsers[0], type: 'CLASS_DISCUSSION', start_date: dateOffset(10), status: 'ACTIVE' });
+  const room2 = await insert('discussion_rooms', { title: 'Ruang Informasi Wali Murid', topic: 'Informasi perkembangan dan kegiatan siswa', description: 'Ruang komunikasi khusus wali murid dengan wali kelas.', creator_id: teacherUsers[1], type: 'TEACHER_PARENT', start_date: dateOffset(10), status: 'ACTIVE' });
+  await insert('discussion_members', { room_id: room1, user_id: teacherUsers[0] });
+  await insert('discussion_members', { room_id: room2, user_id: teacherUsers[1] });
+  studentIds.slice(0, 12).forEach(async (sid) => await insert('discussion_members', { room_id: room1, user_id: sid }));
+  await insert('discussion_members', { room_id: room2, user_id: parentIds[0] });
+  await insert('discussion_members', { room_id: room2, user_id: parentIds[1] });
 
-  insert('messages', { room_id: room1, sender_id: studentIds[0], content: 'Selamat pagi bu, untuk tugas Bab 2 kapan deadline terakhirnya?', created_at: dateOffset(2) });
-  insert('messages', { room_id: room1, sender_id: teacherUsers[0], content: 'Pagi Andi, deadline tugas Bab 2 hari Jumat pukul 20.00 ya. Semangat!', created_at: dateOffset(2) });
-  insert('messages', { room_id: room1, sender_id: studentIds[3], content: 'Bu, apakah boleh mengumpulkan dalam bentuk foto tulisan tangan?', created_at: dateOffset(1) });
-  insert('messages', { room_id: room2, sender_id: parentIds[0], content: 'Selamat siang pak, bagaimana perkembangan belajar Andi di sekolah?', created_at: dateOffset(1) });
-  insert('messages', { room_id: room2, sender_id: teacherUsers[1], content: 'Siang bapak. Alhamdulillah Andi menunjukkan peningkatan pada mapel Fisika, khususnya di bab kinematika.', created_at: dateOffset(1) });
+  await insert('messages', { room_id: room1, sender_id: studentIds[0], content: 'Selamat pagi bu, untuk tugas Bab 2 kapan deadline terakhirnya?', created_at: dateOffset(2) });
+  await insert('messages', { room_id: room1, sender_id: teacherUsers[0], content: 'Pagi Andi, deadline tugas Bab 2 hari Jumat pukul 20.00 ya. Semangat!', created_at: dateOffset(2) });
+  await insert('messages', { room_id: room1, sender_id: studentIds[3], content: 'Bu, apakah boleh mengumpulkan dalam bentuk foto tulisan tangan?', created_at: dateOffset(1) });
+  await insert('messages', { room_id: room2, sender_id: parentIds[0], content: 'Selamat siang pak, bagaimana perkembangan belajar Andi di sekolah?', created_at: dateOffset(1) });
+  await insert('messages', { room_id: room2, sender_id: teacherUsers[1], content: 'Siang bapak. Alhamdulillah Andi menunjukkan peningkatan pada mapel Fisika, khususnya di bab kinematika.', created_at: dateOffset(1) });
 
   // ---------- MEETINGS ----------
-  insert('meetings', { teacher_id: teacherUsers[0], parent_id: parentIds[0], student_id: studentIds[0], topic: 'Perkembangan belajar Andi', date: dateOffsetPlus(7), start_time: '09:00', end_time: '10:00', location: 'Ruang Konsultasi', meeting_type: 'OFFLINE', status: 'SCHEDULED', notes: '' });
-  insert('meetings', { teacher_id: teacherUsers[1], parent_id: parentIds[1], student_id: studentIds[1], topic: 'Evaluasi semester', date: dateOffsetPlus(10), start_time: '13:00', end_time: '14:00', location: 'Google Meet', meeting_type: 'ONLINE', status: 'REQUESTED', notes: '' });
+  await insert('meetings', { teacher_id: teacherUsers[0], parent_id: parentIds[0], student_id: studentIds[0], topic: 'Perkembangan belajar Andi', date: dateOffsetPlus(7), start_time: '09:00', end_time: '10:00', location: 'Ruang Konsultasi', meeting_type: 'OFFLINE', status: 'SCHEDULED', notes: '' });
+  await insert('meetings', { teacher_id: teacherUsers[1], parent_id: parentIds[1], student_id: studentIds[1], topic: 'Evaluasi semester', date: dateOffsetPlus(10), start_time: '13:00', end_time: '14:00', location: 'Google Meet', meeting_type: 'ONLINE', status: 'REQUESTED', notes: '' });
 
   // ---------- FEEDBACK ----------
-  studentIds.slice(0, 6).forEach((sid, i) => {
-    insert('feedbacks', { teacher_id: teacherUsers[i % 2], student_id: sid, subject_id: subjectIds[i % subjectIds.length], content: 'Anak memiliki motivasi belajar yang baik. Pertahankan semangatnya!', created_at: dateOffset(6 - i) });
-  });
+  for (const [i, sid] of studentIds.slice(0, 6).entries()) {
+    await insert('feedbacks', { teacher_id: teacherUsers[i % 2], student_id: sid, subject_id: subjectIds[i % subjectIds.length], content: 'Anak memiliki motivasi belajar yang baik. Pertahankan semangatnya!', created_at: dateOffset(6 - i) });
+  };
 
   // ---------- NOTIFICATIONS ----------
   const notifDefs = [
@@ -391,17 +391,17 @@ function seed() {
     ['ANNOUNCEMENT', 'Informasi Pekan Olahraga', 'Pekan Olahraga Sekolah akan diselenggarakan bulan depan. Siapkan tim kelas Anda!']
   ];
   for (let i = 0; i < Math.min(12, studentIds.length); i++) {
-    notifDefs.forEach((nd, j) => insert('notifications', { recipient_id: studentIds[i], type: nd[0], title: nd[1], message: nd[2], is_read: j < 2 ? 1 : 0, created_at: dateOffset(j * 2) }));
+    notifDefs.forEach(async (nd, j) => await insert('notifications', { recipient_id: studentIds[i], type: nd[0], title: nd[1], message: nd[2], is_read: j < 2 ? 1 : 0, created_at: dateOffset(j * 2) }));
   }
-  parentIds.forEach((pid, j) => {
-    insert('notifications', { recipient_id: pid, type: 'FEEDBACK', title: 'Feedback guru untuk anak Anda', message: 'Guru memberikan catatan perkembangan untuk anak Anda.', is_read: 0, created_at: dateOffset(3) });
-  });
+  for (const [j, pid] of parentIds.entries()) {
+    await insert('notifications', { recipient_id: pid, type: 'FEEDBACK', title: 'Feedback guru untuk anak Anda', message: 'Guru memberikan catatan perkembangan untuk anak Anda.', is_read: 0, created_at: dateOffset(3) });
+  };
 
-  insert('announcements', { title: 'Selamat datang Tahun Ajaran 2026/2027', content: 'Seluruh kegiatan belajar mengajar dimulai Senin, 13 Juli 2026. Pastikan memeriksa jadwal dan ruang kelas masing-masing.', target_role: 'ALL', author_id: admin, status: 'PUBLISHED', created_at: dateOffset(25) });
-  insert('announcements', { title: 'Perpustakaan Digital Diperbarui', content: 'Koleksi e-book terbaru sudah tersedia di perpustakaan digital. Silakan dinikmati!', target_role: 'STUDENT', author_id: admin, status: 'PUBLISHED', created_at: dateOffset(7) });
+  await insert('announcements', { title: 'Selamat datang Tahun Ajaran 2026/2027', content: 'Seluruh kegiatan belajar mengajar dimulai Senin, 13 Juli 2026. Pastikan memeriksa jadwal dan ruang kelas masing-masing.', target_role: 'ALL', author_id: admin, status: 'PUBLISHED', created_at: dateOffset(25) });
+  await insert('announcements', { title: 'Perpustakaan Digital Diperbarui', content: 'Koleksi e-book terbaru sudah tersedia di perpustakaan digital. Silakan dinikmati!', target_role: 'STUDENT', author_id: admin, status: 'PUBLISHED', created_at: dateOffset(7) });
 
   // ---------- ACTIVITY LOGS ----------
-  insert('activity_logs', { user_id: admin, action: 'SEED_DATA', entity: 'system', details: 'Initial demo data created', created_at: dateOffset(1) });
+  await insert('activity_logs', { user_id: admin, action: 'SEED_DATA', entity: 'system', details: 'Initial demo data created', created_at: dateOffset(1) });
 
   return true;
 }

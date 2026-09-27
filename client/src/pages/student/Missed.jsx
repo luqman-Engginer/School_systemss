@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Page, Card, Spinner, EmptyState, Badge, useToast, VideoModal } from '../../components/ui';
 import { AlertTriangle, Play, FileText, RotateCw } from 'lucide-react';
 
@@ -33,7 +33,7 @@ export default function StudentMissed() {
                 <p className="text-xs text-slate-400 mt-1.5">{m.teacher_name || 'Guru'}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {m.video_url && <button className="btn-outline btn-sm" onClick={() => setVideo(m.video_url)}><Play size={13} /> Tonton Video</button>}
-                  {m.file_url && <a className="btn-outline btn-sm" href={m.file_url} target="_blank" rel="noreferrer"><FileText size={13} /> Unduh</a>}
+                  {m.file_url && <a className="btn-outline btn-sm" href={mediaUrl(m.file_url)} target="_blank" rel="noreferrer"><FileText size={13} /> Unduh</a>}
                   <button className="btn-primary btn-sm" onClick={() => review(m)}><RotateCw size={13} /> Tandai Dipelajari</button>
                 </div>
               </div>
