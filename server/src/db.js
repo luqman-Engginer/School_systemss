@@ -3,7 +3,7 @@ const fs = require('fs');
 
 let DatabaseSync;
 try {
-  ({ DatabaseSync } = require('node:sqlite'));
+  ({ DatabaseSync } = require('mysql2'));
 } catch (e) {
   throw new Error('Runtime tidak mendukung node:sqlite. Gunakan Node.js >= 22.5 (dengan --experimental-sqlite) atau Node.js >= 22.13 / 23+.');
 }
