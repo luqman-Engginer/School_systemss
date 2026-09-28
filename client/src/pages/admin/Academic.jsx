@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Page, Card, Modal, StatusBadge, EmptyState, useToast, Spinner, Badge, Avatar } from '../../components/ui';
 import { Plus, Pencil } from 'lucide-react';
 
@@ -188,7 +188,7 @@ function GuruSection({ rows }) {
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {rows.map((g) => (
         <Card key={g.id} className="p-5 flex items-center gap-4 card-hover">
-          <img src={g.photo} alt="" className="h-16 w-16 rounded-2xl object-cover" />
+          <img src={mediaUrl(g.photo)} alt="" className="h-16 w-16 rounded-2xl object-cover" />
           <div className="min-w-0">
             <p className="font-bold text-slate-900 text-sm truncate">{g.name}</p>
             <p className="text-xs text-indigo-600 font-semibold">{g.position}</p>

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './store';
 import { Spinner } from './components/ui';
+import ApiStatus from './components/ApiStatus';
 
 import PublicLayout from './layouts/PublicLayout';
 import AppLayout from './layouts/AppLayout';
@@ -85,7 +86,9 @@ export default function App() {
   const { user, booted } = useAuth();
 
   return (
-    <Routes>
+    <>
+      <ApiStatus />
+      <Routes>
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/tentang" element={<About />} />
@@ -162,7 +165,8 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<PublicHomeFallback />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }
 

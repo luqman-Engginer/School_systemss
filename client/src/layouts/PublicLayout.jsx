@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, LogIn, GraduationCap, ChevronRight, MapPin, Phone, Mail, MessageCircle } from 'lucide-react';
-import { api } from '../api';
+import { api, mediaUrl } from '../api';
 import { useAuth } from '../store';
 
 const ROLE_PATHS = { ADMIN: 'admin', TEACHER: 'guru', STUDENT: 'murid', PARENT: 'wali' };
@@ -48,7 +48,7 @@ export default function PublicLayout() {
           <div className="flex h-16 sm:h-[72px] items-center justify-between gap-4">
             <Link to="/" className="flex items-center gap-3 min-w-0 group">
               {settings?.logo ? (
-                <img src={settings.logo} alt="logo" className="h-10 w-10 rounded-xl object-cover ring-2 ring-white/80 shadow-md transition-transform duration-300 group-hover:scale-105" />
+                <img src={mediaUrl(settings.logo)} alt="logo" className="h-10 w-10 rounded-xl object-cover ring-2 ring-white/80 shadow-md transition-transform duration-300 group-hover:scale-105" />
               ) : (
                 <div className="h-10 w-10 rounded-xl bg-gradient-brand grid place-items-center text-white shadow-lg shadow-indigo-500/30 transition-transform duration-300 group-hover:scale-105"><GraduationCap size={20} /></div>
               )}
@@ -112,7 +112,7 @@ export default function PublicLayout() {
           <div className="grid gap-10 md:grid-cols-4">
             <div className="md:col-span-2">
               <div className="flex items-center gap-3">
-                {settings?.logo ? <img src={settings.logo} alt="logo" className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/20" /> : <div className="h-11 w-11 rounded-xl bg-gradient-brand grid place-items-center"><GraduationCap size={22} /></div>}
+                {settings?.logo ? <img src={mediaUrl(settings.logo)} alt="logo" className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/20" /> : <div className="h-11 w-11 rounded-xl bg-gradient-brand grid place-items-center"><GraduationCap size={22} /></div>}
                 <div>
                   <p className="font-extrabold text-white">{settings?.school_name || 'SchoolHub'}</p>
                   <p className="text-sm text-slate-400">{settings?.slogan || ''}</p>

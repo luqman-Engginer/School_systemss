@@ -4,7 +4,7 @@ import {
   ArrowRight, CalendarDays, Sparkles, BookOpen, Users, MessageSquare,
   Trophy, ImageIcon, ChevronRight, MapPin, Phone, Mail, GraduationCap, Rocket
 } from 'lucide-react';
-import { api } from '../../api';
+import { api, mediaUrl } from '../../api';
 import { Spinner, Badge } from '../../components/ui';
 
 const KEUNGGULAN = [
@@ -28,7 +28,7 @@ export default function Home() {
     <div>
       {/* HERO */}
       <section className="relative overflow-hidden bg-slate-950">
-        <img src={settings.hero_image || settings.banner} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
+        <img src={mediaUrl(settings.hero_image || settings.banner)} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/95 via-slate-950/85 to-sky-950/70" />
         <div className="absolute -top-24 -right-24 h-[26rem] w-[26rem] rounded-full bg-indigo-600/30 blur-3xl animate-pulse" />
         <div className="absolute -bottom-32 -left-16 h-[26rem] w-[26rem] rounded-full bg-sky-500/20 blur-3xl" />
@@ -117,7 +117,7 @@ export default function Home() {
               {news.map((n) => (
                 <Link key={n.id} to={`/berita/${n.id}`} className="card overflow-hidden card-hover group">
                   <div className="relative h-44 overflow-hidden">
-                    <img src={n.thumbnail} alt={n.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    <img src={mediaUrl(n.thumbnail)} alt={n.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     <Badge tone="indigo" className="absolute left-3 top-3 bg-white/90">{n.category}</Badge>
                   </div>
                   <div className="p-5">
@@ -193,7 +193,7 @@ export default function Home() {
         <div className="mt-8 grid grid-cols-2 md:grid-cols-3 gap-3">
           {gallery.map((g) => (
             <Link key={g.id} to="/galeri" className="group relative h-44 sm:h-56 overflow-hidden rounded-2xl">
-              <img src={g.image} alt={g.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+              <img src={mediaUrl(g.image)} alt={g.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
                 <p className="text-white text-xs font-bold">{g.title}</p>
               </div>
@@ -212,7 +212,7 @@ export default function Home() {
           <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-5">
             {teachers.map((t) => (
               <Link to="/guru" key={t.name} className="card p-5 text-center card-hover">
-                <img src={t.photo} alt={t.name} className="mx-auto h-24 w-24 rounded-2xl object-cover" />
+                <img src={mediaUrl(t.photo)} alt={t.name} className="mx-auto h-24 w-24 rounded-2xl object-cover" />
                 <h3 className="mt-4 font-bold text-slate-900 text-sm">{t.name}</h3>
                 <p className="text-xs font-semibold text-indigo-600 mt-1">{t.position}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">{t.subject}</p>
