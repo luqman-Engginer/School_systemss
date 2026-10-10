@@ -377,8 +377,8 @@ router.get('/traffic', async (req, res) => {
 
   const trendRows = await db.prepare(`SELECT substr(lp.completed_at,1,10) AS day, COUNT(*) AS c
     FROM learning_progress lp JOIN student_classes sc ON sc.student_id = lp.student_id AND sc.status = 'ACTIVE'
-    WHERE sc.class_id = ? AND lp.status = 'COMPLETED' AND lp.completed_at IS NOT NULL AND lp.completed_at >= date('now', ?)
-    GROUP BY day ORDER BY day`).all(classId, `-${days} days`);
+    WHERE sc.class_id = ? AND lp.status = 'COMPLETED' AND lp.completed_at IS NOT NULL AND lp.completed_at >= DATE_SUB(UTC_DATE(), INTERVAL ${days} DAY)
+    GROUP BY day ORDER BY day`).all(classId);
 
   const trendMap = {};
   trendRows.forEach((r) => { trendMap[r.day] = r.c; });
@@ -393,7 +393,7 @@ router.get('/traffic', async (req, res) => {
 
   const attRows = await db.prepare(`SELECT date, status, COUNT(*) AS c FROM attendance
     WHERE student_id IN (SELECT student_id FROM student_classes WHERE class_id = ? AND status = 'ACTIVE')
-    AND date >= date('now', ?) GROUP BY date, status ORDER BY date`).all(classId, `-${days} days`);
+    AND date >= DATE_SUB(UTC_DATE(), INTERVAL ${days} DAY) GROUP BY date, status ORDER BY date`).all(classId);
   const attMap = {};
   const attByDate = {};
   const PR = { PRESENT: 1, LATE: 1, SICK: 1, EXCUSED: 1 };

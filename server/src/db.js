@@ -294,7 +294,7 @@ const TABLES = [
     category VARCHAR(190) NOT NULL DEFAULT '',
     student_team VARCHAR(255) NOT NULL DEFAULT '',
     competition VARCHAR(255) NOT NULL DEFAULT '',
-    rank VARCHAR(60) NOT NULL DEFAULT '',
+    \`rank\` VARCHAR(60) NOT NULL DEFAULT '',
     year VARCHAR(20) NOT NULL DEFAULT '',
     description TEXT,
     documentation TEXT,

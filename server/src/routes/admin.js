@@ -282,12 +282,12 @@ const crud = (table, columns, { searchCol = 'title', detailJoin = '' } = {}) => 
     const keys = columns.filter((c) => body[c] !== undefined);
     if (!keys.length) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
     if (body.status === '') delete body.status;
-    const colStr = keys.join(', ');
+    const colStr = keys.map((k) => `\`${k}\``).join(', ');
     const ph = keys.map(() => '?').join(', ');
-    const vals = keys.map((k) => (body[k] === null ? '' : body[k]));
+    const vals = keys.map((k) => (k.endsWith('_id') && (body[k] === '' || body[k] == null) ? null : body[k] === null ? '' : body[k]));
     if (table === 'news') {
       vals.push(body.author_id || req.user.id);
-      const r = await db.prepare(`INSERT INTO news (${colStr}, author_id) VALUES (${ph}, ?)`).run(...vals);
+      const r = await db.prepare(`INSERT INTO news (${colStr}, \`author_id\`) VALUES (${ph}, ?)`).run(...vals);
       await db.prepare('INSERT INTO activity_logs (user_id, action, entity, details) VALUES (?,?,?,?)').run(req.user.id, 'CREATE', 'news', `Created news #${r.lastInsertRowid}`);
       return res.status(201).json({ success: true, data: { id: r.lastInsertRowid } });
     }
@@ -300,8 +300,8 @@ const crud = (table, columns, { searchCol = 'title', detailJoin = '' } = {}) => 
     const keys = columns.filter((c) => body[c] !== undefined);
     if (!keys.length) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
     if (body.status === '') delete body.status;
-    const sets = keys.map((k) => `${k} = ?`).join(', ');
-    const vals = keys.map((k) => (body[k] === null ? '' : body[k]));
+    const sets = keys.map((k) => `\`${k}\` = ?`).join(', ');
+    const vals = keys.map((k) => (k.endsWith('_id') && (body[k] === '' || body[k] == null) ? null : body[k] === null ? '' : body[k]));
     await db.prepare(`UPDATE ${table} SET ${sets} WHERE id = ?`).run(...vals, req.params.id);
     await db.prepare('INSERT INTO activity_logs (user_id, action, entity, details) VALUES (?,?,?,?)').run(req.user.id, 'UPDATE', table, `Updated ${table} #${req.params.id}`);
     res.json({ success: true, data: { id: req.params.id } });
