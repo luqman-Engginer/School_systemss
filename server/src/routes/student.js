@@ -5,7 +5,7 @@ const { makeNotification } = require('./auth');
 const router = express.Router();
 router.use(authenticate, requireRole('STUDENT'));
 
-const uid = async (req) => req.user.id;
+const uid = (req) => req.user.id;
 
 const myClassQuery = 'SELECT class_id FROM student_classes WHERE student_id = ? AND status = \'ACTIVE\'';
 
@@ -169,7 +169,7 @@ router.get('/quizzes/:id/questions', async (req, res) => {
   if (!quiz) return res.status(404).json({ success: false, error: 'Quiz tidak ditemukan.' });
   const myClass = (await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ? AND status = \'ACTIVE\'').get(me))?.class_id;
   if (quiz.class_id !== myClass) return res.status(403).json({ success: false, error: 'Bukan kuis kelas Anda.' });
-  const questions = await db.prepare('SELECT id, quiz_id, question, type, options, score FROM questions WHERE quiz_id = ? ORDER BY id').all(quiz.id).map((q) => {
+  const questions = (await db.prepare('SELECT id, quiz_id, question, type, options, score FROM questions WHERE quiz_id = ? ORDER BY id').all(quiz.id)).map((q) => {
     try { q.options = JSON.parse(q.options || '[]'); } catch { q.options = []; }
     return q;
   });

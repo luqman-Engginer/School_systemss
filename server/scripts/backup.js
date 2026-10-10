@@ -1,57 +1,155 @@
-// Backup database SQLite konsisten tanpa menghentikan server.
+// Backup database MySQL/MariaDB tanpa menghentikan server.
 //
 // Dipakai lewat cron / scheduled task di host:
 //   0 3 * * *  cd /srv/schoolhub/server && npm run backup
 //
-// Backup ditulis dengan VACUUM INTO, jadi aman dijalankan kapan pun walau
-// server sedang melayani request (tidak mengunci tabel seperti cp file mentah).
+// Dua mode, dipilih otomatis:
+//   1. mysqldump / mariadb-dump bila binary-nya ada.|--single-transaction
+//      menjamin snapshot konsisten tanpa mengunci tabel.
+//   2. Kalau binary tidak ada, dump disusun sendiri lewat mysql2. Konsisten
+//      karena berjalan di dalam satu REPEATABLE READ transaction, tapi jauh
+//      lebih lambat pada tabel besar.
 //
 // Env:
-//   SQLITE_PATH  lokasi database aktif (default server/data/schoolhub.db)
-//   BACKUP_DIR   tujuan backup   (default server/backups)
+//   DB_HOST DB_PORT DB_USER DB_PASSWORD DB_NAME  (lihat src/db.js)
+//   BACKUP_DIR   tujuan backup (default server/backups)
 //   BACKUP_KEEP  jumlah backup lama yang dipertahankan (default 14)
 
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const { spawn, spawnSync } = require('child_process');
+const mysql = require('mysql2/promise');
 
-const DB_PATH = process.env.SQLITE_PATH || path.join(__dirname, '..', 'data', 'schoolhub.db');
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, '..', 'backups');
 const KEEP = Math.max(1, Number(process.env.BACKUP_KEEP) || 14);
+const FILE_RE = /^schoolhub-\d{8}-\d{6}\.sql(\.gz)?$/;
 
 function stamp() {
   return new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 }
 
-async function main() {
-  if (!fs.existsSync(DB_PATH)) {
-    console.error(`[backup] database tidak ditemukan: ${DB_PATH}`);
-    process.exit(1);
+function connectionOptions() {
+  return {
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'schoolhub',
+    charset: 'utf8mb4_unicode_ci',
+    timezone: 'Z',
+    dateStrings: true,
+    supportBigNumbers: true,
+  };
+}
+
+function findDumpBinary() {
+  for (const bin of ['mariadb-dump', 'mysqldump']) {
+    if (spawnSync(bin, ['--version'], { stdio: 'ignore' }).status === 0) return bin;
   }
+  return null;
+}
 
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+function dumpWithBinary(bin, target) {
+  const args = [
+    `-h${process.env.DB_HOST || '127.0.0.1'}`,
+    `-P${process.env.DB_PORT || 3306}`,
+    `-u${process.env.DB_USER || 'root'}`,
+    '--single-transaction',
+    '--quick',
+    '--routines',
+    '--triggers',
+    '--events',
+    '--default-character-set=utf8mb4',
+    '--result-file',
+    target,
+    process.env.DB_NAME || 'schoolhub',
+  ];
+  if (process.env.DB_PASSWORD) args.splice(4, 0, `-p${process.env.DB_PASSWORD}`);
 
-  const target = path.join(BACKUP_DIR, `schoolhub-${stamp()}.db`);
-  const db = require('../src/db');
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, { stdio: ['ignore', 'inherit', 'inherit'] });
+    child.on('error', reject);
+    child.on('close', (code) =>
+      code === 0 ? resolve() : reject(new Error(`${bin} keluar dengan kode ${code}`))
+    );
+  });
+}
 
+const quote = (v) => {
+  if (v === null || v === undefined) return 'NULL';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'boolean') return v ? '1' : '0';
+  if (Buffer.isBuffer(v)) return `X'${v.toString('hex')}'`;
+  return `'${String(v)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\0/g, '\\0')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\x1a/g, '\\Z')}'`;
+};
+
+async function dumpWithNode(target) {
+  const conn = await mysql.createConnection(connectionOptions());
   try {
-    db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);
-  } catch (e) {
-    console.error(`[backup] gagal menulis backup: ${e.message}`);
-    process.exit(1);
-  } finally {
-    try {
-      db.close();
-    } catch {
-      /* sudah tertutup */
+    await conn.query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    await conn.beginTransaction();
+
+    const [tables] = await conn.query(
+      'SELECT table_name AS name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = ?',
+      ['BASE TABLE']
+    );
+
+    const out = fs.createWriteStream(target, { encoding: 'utf8' });
+    const write = (s) =>
+      out.write(s) ? Promise.resolve() : new Promise((r) => out.once('drain', r));
+
+    await write(
+      `-- SchoolHub dump ${new Date().toISOString()}\n-- database: ${process.env.DB_NAME || 'schoolhub'}\n` +
+        'SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n'
+    );
+
+    for (const { name } of tables) {
+      const [ddl] = await conn.query(`SHOW CREATE TABLE \`${name}\``);
+      await write(`DROP TABLE IF EXISTS \`${name}\`;\n${ddl[0]['Create Table']};\n\n`);
+
+      const [rows] = await conn.query(`SELECT * FROM \`${name}\``);
+      if (!rows.length) continue;
+
+      const cols = Object.keys(rows[0]);
+      const prefix =
+        `INSERT INTO \`${name}\` (${cols.map((c) => `\`${c}\``).join(',')}) VALUES\n`;
+
+      await write(prefix);
+
+      let chunk = '';
+      for (const row of rows) {
+        chunk += `(${cols.map((c) => quote(row[c])).join(',')});\n`;
+        if (chunk.length > 1024 * 1024) {
+          await write(chunk);
+          chunk = '';
+        }
+      }
+      if (chunk) await write(chunk);
+      await write('\n');
     }
+
+    await write('SET FOREIGN_KEY_CHECKS = 1;\n');
+    out.end();
+    await new Promise((resolve, reject) => out.on('close', resolve).on('error', reject));
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    await conn.end().catch(() => {});
   }
+}
 
-  const sizeKb = Math.round(fs.statSync(target).size / 1024);
-  console.log(`[backup] tersimpan: ${target} (${sizeKb} KB)`);
-
+function prune() {
   const files = fs
     .readdirSync(BACKUP_DIR)
-    .filter((f) => /^schoolhub-\d{8}-\d{6}\.db$/.test(f))
+    .filter((f) => FILE_RE.test(f))
     .sort();
 
   const stale = files.slice(0, Math.max(0, files.length - KEEP));
@@ -59,8 +157,30 @@ async function main() {
     fs.unlinkSync(path.join(BACKUP_DIR, f));
     console.log(`[backup] dihapus (lampau): ${f}`);
   }
-
   console.log(`[backup] selesai, ${Math.min(files.length, KEEP)} backup tersimpan.`);
+}
+
+async function main() {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const target = path.join(BACKUP_DIR, `schoolhub-${stamp()}.sql`);
+
+  const bin = findDumpBinary();
+  try {
+    if (bin) {
+      await dumpWithBinary(bin, target);
+      console.log(`[backup] metode: ${bin}`);
+    } else {
+      await dumpWithNode(target);
+      console.log('[backup] metode: dump internal mysql2 (mysqldump tidak ditemukan)');
+    }
+  } catch (e) {
+    console.error(`[backup] gagal menulis backup: ${e.message}`);
+    if (fs.existsSync(target)) fs.unlinkSync(target);
+    process.exit(1);
+  }
+
+  console.log(`[backup] tersimpan: ${target} (${Math.round(fs.statSync(target).size / 1024)} KB)`);
+  prune();
 }
 
 main();

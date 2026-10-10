@@ -12,10 +12,10 @@ router.get('/settings', async (req, res) => {
 
 router.get('/home', async (req, res) => {
   const settings = await db.prepare('SELECT * FROM school_settings WHERE id = 1').get();
-  const news = await published('news').slice(0, 3);
-  const events = await published('events').slice(0, 3);
-  const achievements = await published('achievements').slice(0, 4);
-  const gallery = await published('gallery').slice(0, 6);
+  const news = (await published('news')).slice(0, 3);
+  const events = (await published('events')).slice(0, 3);
+  const achievements = (await published('achievements')).slice(0, 4);
+  const gallery = (await published('gallery')).slice(0, 6);
   const programs = await db.prepare("SELECT * FROM programs WHERE status = 'PUBLISHED'").all();
   const teachers = await db.prepare('SELECT u.name, t.position, t.subject, t.bio, u.photo FROM teachers t JOIN users u ON u.id = t.user_id WHERE t.public_visible = 1 AND u.status = \'ACTIVE\' LIMIT 4').all();
   const faqs = await db.prepare('SELECT * FROM faqs WHERE active = 1 ORDER BY sort_order LIMIT 4').all();

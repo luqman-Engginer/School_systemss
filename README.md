@@ -1,6 +1,6 @@
 # SchoolHub — Digital School Integrated Platform
 
-Aplikasi manajemen sekolah terpadu (SMA Cendekia Muda Jakarta): website publik (CMS), dashboard Admin, Guru, Murid, dan Wali Murid — dibangun dengan Node.js (Express + SQLite) dan React (Vite + Tailwind CSS v4).
+Aplikasi manajemen sekolah terpadu (SMA Cendekia Muda Jakarta): website publik (CMS), dashboard Admin, Guru, Murid, dan Wali Murid — dibangun dengan Node.js (Express + MySQL) dan React (Vite + Tailwind CSS v4).
 
 ## Struktur
 
@@ -9,7 +9,7 @@ project_skolah/
 ├── server/          # Backend API (Express, port 5000)
 │   └── src/
 │       ├── index.js   # Entry point + serves client/dist di production
-│       ├── db.js      # Schema SQLite
+│       ├── db.js      # Skema MySQL (pool mysql2 + helper prepare/get/all/run)
 │       ├── seed.js    # Seed data (dijalankan otomatis saat DB kosong)
 │       └── routes/    # auth, public, admin, teacher, student, parent
 ├── client/          # Frontend (React + Vite + Tailwind v4, port 5173)
@@ -22,11 +22,17 @@ project_skolah/
 
 ## Menjalankan
 
+Prasyarat: **MySQL 8.0.16+** atau **MariaDB 10.2+** yang sudah berjalan, lalu database (kosong) dibuat:
+
+```sql
+CREATE DATABASE schoolhub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
 ```bash
 # Backend
 cd server
 npm install
-npm start              # atau npm run dev (auto-restart)
+DB_USER=root DB_PASSWORD=rahasia npm start   # atau npm run dev (auto-restart)
 
 # Frontend (development)
 cd client
@@ -38,7 +44,7 @@ cd client
 npm run build          # hasil di client/dist, disajikan langsung oleh server
 ```
 
-Database SQLite dibuat otomatis di `server/data/schoolhub.db` saat server pertama kali berjalan, lalu di-seed. **Untuk reset data demo, hapus `server/data/schoolhub.db*` dan jalankan ulang server.**
+Semua tabel dibuat otomatis oleh `src/db.js` saat server pertama kali berjalan, lalu di-seed. **Untuk reset data demo, `DROP DATABASE schoolhub; CREATE DATABASE schoolhub ...` dan jalankan ulang server.**
 
 ## Deploy
 
@@ -46,26 +52,28 @@ Arsitektur produksi: **frontend statis di Vercel, backend di host long-running**
 
 Backend tidak bisa ikut naik ke Vercel sebagai static build, dan `vercel.json` hanya melakukan build `client/`. Karena itu `VITE_API_URL` **wajib** diisi di Vercel — kalau kosong, request `/api/*` jatuh ke rewrite SPA dan menerima `index.html` (bukan JSON), sehingga situs terbuka tetapi semua halaman kosong dan login selalu gagal.
 
-### Penting: free tier yang tidur akan menghapus database
+### Penting: database dan file upload harus persisten
 
-Aplikasi ini menyimpan data di file SQLite, jadi **host wajib berupa instans yang tidak pernah dimatikan otomatis**. Free tier berbasis "spin down" tidak bisa dipakai:
+Data ada di **MySQL**, bukan lagi di file lokal, jadi frontend statis Vercel dan backend bisa hidup di mana saja. Yang tetap perlu diperhatikan: **layanan MySQL tidak boleh sleep, dan `UPLOAD_DIR` tetap butuh persistent volume** karena file upload tidak disimpan di database.
 
 | Host | Free tier | Dipakai untuk SchoolHub |
 | ---- | --------- | ----------------------- |
-| Render Free | Tidur setelah 15 menit idle, spin up ~1 menit, dan **filesystem ephemeral** | **Jangan dipakai.** Dokumentasi Render menyatakan perubahan di filesystem (termasuk SQLite dan file upload) hilang setiap kali service redeploy, restart, atau spin down |
+| Neon / Aiven / PlanetScale | Database terkelola, plan gratis ada | **Paling mudah.** Tidak perlu mengelola server database sendiri |
+| MySQL di VPS sendiri | ikut biaya VPS | Lengkap, tapi harus backup manual |
+| Render Free | Tidur setelah 15 menit idle, spin up ~1 menit, **filesystem ephemeral** | **Jangan dipakai** — data CMS aman di MySQL, tapi file upload hilang tiap redeploy |
 | Railway Free | Kredit $5/bulan, service berhenti saat kredit habis | **Jangan dipakai** untuk produksi |
-| Oracle Cloud Always Free | Instans VMnyat always-on | Bisa, tapi kuota Ampere A1 dipangkas jadi 2 OCPU / 12 GB (Juni 2026) dan sering kena "out of host capacity" |
+| Oracle Cloud Always Free | Instans VM always-on | Bisa, tapi kuota Ampere A1 dipangkas jadi 2 OCPU / 12 GB (Juni 2026) dan sering kena "out of host capacity" |
 
 Opsi yang benar-benar 24/7:
 
 | Opsi | Biaya | Catatan |
 | ---- | ----- | ------- |
-| VPS sendiri (Hetzner, DigitalOcean, Linode) + systemd | €4–6/bulan | Paling murah andal, kontrol penuh, butuh setup Nginx/Caddy + TLS |
-| Render **Starter** | $7/bulan | Lepas spin-down, bisa attach persistent disk |
-| Fly.io Machine (always-on) | ±$5–7/bulan | Set `auto_stop = false`, attach volume |
+| VPS sendiri (Hetzner, DigitalOcean, Linode) + MySQL lokal + systemd | €4–6/bulan | Paling murah andal, kontrol penuh, butuh setup Nginx/Caddy + TLS |
 | Railway (plan berbayar) | $5 kredit/bulan | Volume persisten, selalu hidup |
+| Fly.io Machine (always-on) | ±$5–7/bulan | Set `auto_stop = false`, attach volume |
+| Render **Starter** | $7/bulan | Lepas spin-down, bisa attach persistent disk |
 
-Kalau tidak ada budget, **Oracle Cloud Always Free** adalah satu-satunya opsi gratis yang benar-benar always-on. Pastikan `SQLITE_PATH` dan `UPLOAD_DIR` tetap berada di **persistent volume** di sana juga, karena disk instance OCI tidak persisten.
+Kalau tidak ada budget: **Oracle Cloud Always Free** untuk VM + **Neon/Aiven free tier** untuk MySQL. `UPLOAD_DIR` tetap harus diarahkan ke persistent volume di VM, karena disk instance OCI tidak persisten.
 
 ### 1. Backend (host always-on)
 
@@ -74,19 +82,23 @@ Kalau tidak ada budget, **Oracle Cloud Always Free** adalah satu-satunya opsi gr
 | Root Directory | `server` |
 | Build Command | `npm ci` |
 | Start Command | `npm start` |
-| Node version | **22.13 atau lebih baru** — `src/db.js` memakai `node:sqlite`, di bawah itu backend gagal start |
+| Node version | **20 atau lebih baru** |
 
 Environment variables (lihat `server/.env.example`):
 
 | Var | Nilai | Wajib |
 | --- | ----- | ----- |
-| `SQLITE_PATH` | mis. `/data/schoolhub.db` | Ya, arahkan ke **persistent volume** |
-| `UPLOAD_DIR` | mis. `/data/uploads` | Ya, volume yang sama |
+| `DB_HOST` | host MySQL, mis. `127.0.0.1` atau host dari provider terkelola | Ya |
+| `DB_PORT` | `3306` | Tidak, ada default |
+| `DB_USER` | user MySQL | Ya |
+| `DB_PASSWORD` | password MySQL | Ya |
+| `DB_NAME` | `schoolhub` | Tidak, ada default |
+| `UPLOAD_DIR` | mis. `/data/uploads` | Ya, arahkan ke **persistent volume** |
 | `JWT_SECRET` | `openssl rand -base64 48` | Ya |
 | `CORS_ORIGIN` | domain Vercel, mis. `https://schoolhub.vercel.app` | Ya di production |
 | `PORT` | kosong, biarkan platform yang menentukan | Tidak |
 
-`SQLITE_PATH` dan `UPLOAD_DIR` **wajib** menunjuk ke persistent volume. Tanpa itu, database (beserta seluruh akun dan CMS) dan file upload hilang setiap kali service restart atau redeploy.
+Database `schoolhub` harus sudah ada (tabel dibuat otomatis saat boot). `UPLOAD_DIR` **wajib** menunjuk ke persistent volume — tanpa itu file upload hilang setiap kali service restart atau redeploy.
 
 Verifikasi backend hidup:
 
@@ -123,7 +135,7 @@ Folder upload diatur lewat `UPLOAD_DIR` (lihat `server/src/index.js`) dan **waji
 
 ### Siklus hidup backend
 
-`src/index.js` menangani `SIGTERM` dan `SIGINT`: server berhenti menerima koneksi baru, menjalankan `PRAGMA wal_checkpoint(TRUNCATE)`, lalu menutup database. Platform seperti Render/Railway/Fly mengirim `SIGTERM` sebelum mematikan proses, dan tanpa handler ini file `schoolhub.db-wal` bisa tertinggal tidak ter-flush sehingga database berisiko rusak setiap kali deploy.
+`src/index.js` menangani `SIGTERM` dan `SIGINT`: server berhenti menerima koneksi baru, lalu pool koneksi MySQL ditutup dengan rapi. Platform seperti Render/Railway/Fly mengirim `SIGTERM` sebelum mematikan proses, dan tanpa handler ini koneksi yatim menggantung sampai proses dibunuh paksa oleh platform.
 
 ### Pemulihan otomatis di sisi klien
 
@@ -146,13 +158,15 @@ Bila memakai host dengan free tier yang tidur, monitor ini sekaligus membuat ser
 cd server && npm run backup
 ```
 
-Script `server/scripts/backup.js` menulis snapshot konsisten dengan `VACUUM INTO` (aman dijalankan saat server melayani request) dan otomatis menghapus backup lama melebihi `BACKUP_KEEP`. Jadwalkan lewat cron di host:
+Script `server/scripts/backup.js` menulis dump SQL ke `BACKUP_DIR` dan otomatis menghapus backup lama melebihi `BACKUP_KEEP`. Dump memakai `mysqldump`/`mariadb-dump` dengan `--single-transaction` bila binary-nya tersedia, jadi snapshot konsisten tanpa mengunci tabel walau server sedang melayani request. Kalau binary tidak ada, script jatuh ke dump internal berbasis `mysql2` (satu transaction `REPEATABLE READ`).
+
+Jadwalkan lewat cron di host:
 
 ```cron
 0 3 * * * cd /srv/schoolhub/server && /usr/bin/npm run backup >> /var/log/schoolhub-backup.log 2>&1
 ```
 
-Pastikan `BACKUP_DIR` berada di persistent volume, dan salin keluar dari mesin tersebut secara berkala.
+Pastikan `BACKUP_DIR` berada di persistent volume, dan **salin keluar dari mesin tersebut** secara berkala. Kalau database-nya terkelola (Neon, Aiven, PlanetScale), lebih baik andalkan snapshot otomatis provider dan jalankan script ini sebagai lapisan tambahan.
 
 ## Akun Demo
 
