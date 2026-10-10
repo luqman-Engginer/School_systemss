@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Modal, Spinner, useToast, Avatar, EmptyState, Badge, Tabs } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Modal, Spinner, useToast, Avatar, EmptyState, Badge, Tabs, ErrorState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search, Users, Download, Upload, FileSpreadsheet } from 'lucide-react';
 
 function parseCSV(text) {
@@ -330,8 +331,6 @@ function UserForm({ model, onClose, onSave }) {
 
 export default function AdminUsers() {
   const [tab, setTab] = useState('STUDENT');
-  const [rows, setRows] = useState(null);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const limit = 20;
   const [sel, setSel] = useState(null);
@@ -339,33 +338,18 @@ export default function AdminUsers() {
   const [importOpen, setImportOpen] = useState(false);
   const [q, setQ] = useState('');
   const toast = useToast();
-
-  const load = () => {
-    api(`/admin/users?role=${tab}&q=${encodeURIComponent(q)}&page=${page}&limit=${limit}`)
-      .then((d) => {
-        if (Array.isArray(d)) {
-          setRows(d);
-          setTotal(d.length);
-        } else {
-          setRows(d.rows || []);
-          setTotal(d.total || 0);
-        }
-      })
-      .catch(() => {
-        setRows([]);
-        setTotal(0);
-      });
-  };
+  const { data: rowsData, error, retry } = useApi(
+    `/admin/users?role=${tab}&q=${encodeURIComponent(q)}&page=${page}&limit=${limit}`,
+    { deps: [tab, page, q] }
+  );
+  const rows = rowsData == null ? null : (Array.isArray(rowsData) ? rowsData : (rowsData.rows || []));
+  const total = rowsData == null ? 0 : (Array.isArray(rowsData) ? rowsData.length : (rowsData.total || 0));
 
   useEffect(() => {
     setPage(1);
   }, [tab]);
 
-  useEffect(() => {
-    setRows(null);
-    load();
-  }, [tab, page, q]);
-
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -379,13 +363,13 @@ export default function AdminUsers() {
       else await api('/admin/users', { method: 'POST', body: payload });
       toast.success('Data pengguna tersimpan.');
       setOpen(false);
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 
   const del = async (u) => {
     if (!window.confirm(`Nonaktifkan ${u.name}?`)) return;
-    try { await api(`/admin/users/${u.id}`, { method: 'DELETE' }); toast.success('Pengguna dinonaktifkan.'); load(); } catch (e) { toast.error(e.message); }
+    try { await api(`/admin/users/${u.id}`, { method: 'DELETE' }); toast.success('Pengguna dinonaktifkan.'); retry(); } catch (e) { toast.error(e.message); }
   };
 
   const openEdit = async (u) => {
@@ -504,7 +488,7 @@ export default function AdminUsers() {
         <UserForm model={sel} onClose={() => setOpen(false)} onSave={save} />
       </Modal>
 
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onSuccess={load} />
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onSuccess={retry} />
     </Page>
   );
 }

@@ -1,19 +1,18 @@
-import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge, ErrorState } from '../../components/ui';
 import { Video, MapPin, CalendarDays } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function ParentMeetings() {
-  const [rows, setRows] = useState(null);
+  const { data: rows, error, retry } = useApi('/parent/meetings');
   const toast = useToast();
-  const load = () => api('/parent/meetings').then(setRows).catch(() => {});
-  useEffect(() => { load(); }, []);
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const update = async (m, status) => {
     const next = status === 'ACCEPTED' ? 'SCHEDULED' : 'CANCELLED';
-    try { await api(`/parent/meetings/${m.id}`, { method: 'PUT', body: { status: next } }); toast.success(`Meeting ${status === 'ACCEPTED' ? 'diterima' : 'ditolak'}.`); load(); } catch (e) { toast.error(e.message); }
+    try { await api(`/parent/meetings/${m.id}`, { method: 'PUT', body: { status: next } }); toast.success(`Meeting ${status === 'ACCEPTED' ? 'diterima' : 'ditolak'}.`); retry(); } catch (e) { toast.error(e.message); }
   };
 
   return (

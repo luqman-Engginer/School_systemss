@@ -25,6 +25,18 @@ export function AuthProvider({ children }) {
     boot();
   }, []);
 
+  // 401 dari endpoint mana pun (token kedaluwarsa) membersihkan sesi supaya
+  // Protected route mengarahkan ke /login alih-alih menggantung.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setToken(null);
+      setUser(null);
+      setUserState(null);
+    };
+    window.addEventListener('sh:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('sh:unauthorized', onUnauthorized);
+  }, []);
+
   const login = async (email, password) => {
     const data = await api('/auth/login', { method: 'POST', body: { email, password } });
     setToken(data.token);

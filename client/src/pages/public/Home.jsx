@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, CalendarDays, Sparkles, BookOpen, Users, MessageSquare,
   Trophy, ImageIcon, ChevronRight, MapPin, Phone, Mail, GraduationCap, Rocket
 } from 'lucide-react';
-import { api, mediaUrl } from '../../api';
-import { Spinner, Badge } from '../../components/ui';
+import { mediaUrl } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState, Badge } from '../../components/ui';
 
 const KEUNGGULAN = [
   { icon: BookOpen, title: 'Learning Hub Terpadu', desc: 'Materi, tugas, quiz, hingga review dalam satu alur belajar yang terstruktur.', tone: 'bg-indigo-50 text-indigo-600' },
@@ -15,12 +15,9 @@ const KEUNGGULAN = [
 ];
 
 export default function Home() {
-  const [data, setData] = useState(null);
+  const { data, error, retry } = useApi('/public/home');
 
-  useEffect(() => {
-    api('/public/home').then(setData).catch(() => {});
-  }, []);
-
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
   const { settings, news, events, achievements, gallery, programs, teachers, faqs } = data;
 

@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, ProgressBar, EmptyState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, ProgressBar, EmptyState, ErrorState } from '../../components/ui';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const COLORS = { PRESENT: '#10b981', LATE: '#f59e0b', SICK: '#0ea5e9', EXCUSED: '#8b5cf6', ABSENT: '#f43f5e' };
 const PCOLORS = { COMPLETED: '#10b981', IN_PROGRESS: '#0ea5e9', MISSED: '#f43f5e', NOT_STARTED: '#94a3b8' };
 
 export default function AdminReports() {
-  const [d, setD] = useState(null);
-  useEffect(() => { api('/admin/reports').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/admin/reports');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const att = d.attendance.map((x) => ({ name: x.status, value: x.c, fill: COLORS[x.status] || '#64748b' }));

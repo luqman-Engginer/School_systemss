@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Badge, ProgressBar, Avatar } from '../../components/ui';
+import { useState } from 'react';
+import { Page, Card, Spinner, EmptyState, Badge, ProgressBar, Avatar, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Users, BookOpen } from 'lucide-react';
 
 export default function TeacherClasses() {
-  const [d, setD] = useState(null);
-  const [students, setStudents] = useState([]);
+  const { data: d, error, retry } = useApi('/teacher/my-classes');
   const [selClass, setSelClass] = useState(null);
-  useEffect(() => { api('/teacher/my-classes').then(setD).catch(() => {}); }, []);
-  useEffect(() => { if (selClass) api(`/teacher/students?class_id=${selClass}`).then(setStudents).catch(() => {}); }, [selClass]);
+  const { data: studentsData, error: studentsError, retry: retryStudents } = useApi(`/teacher/students?class_id=${selClass}`, { enabled: !!selClass });
+  const students = studentsData ?? [];
+  if (error) return <ErrorState error={error} onRetry={retry} />;
+  if (studentsError) return <ErrorState error={studentsError} onRetry={retryStudents} />;
   if (!d) return <Spinner />;
 
   return (

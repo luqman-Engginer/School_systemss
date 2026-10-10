@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, mediaUrl } from '../../api';
-import { Page, Card, Modal, StatusBadge, EmptyState, Badge, useToast, ConfirmModal, Spinner } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Modal, StatusBadge, EmptyState, Badge, useToast, ConfirmModal, Spinner, ErrorState } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 
 const CONFIGS = {
@@ -98,45 +99,25 @@ export default function AdminUmum() {
   const { cms } = useParams();
   const cfg = CONFIGS[cms];
   const toast = useToast();
-  const [rows, setRows] = useState(null);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const limit = 20;
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
   const [del, setDel] = useState(null);
-
-  const load = () => {
-    if (!cfg) return;
-    api(`/admin/${cfg.api}?q=${encodeURIComponent(q)}&page=${page}&limit=${limit}`)
-      .then((d) => {
-        if (Array.isArray(d)) {
-          setRows(d);
-          setTotal(d.length);
-        } else {
-          setRows(d.rows || []);
-          setTotal(d.total || 0);
-        }
-      })
-      .catch(() => {
-        setRows([]);
-        setTotal(0);
-      });
-  };
+  const { data: rowsData, error, retry } = useApi(
+    cfg ? `/admin/${cfg.api}?q=${encodeURIComponent(q)}&page=${page}&limit=${limit}` : null,
+    { enabled: !!cfg, deps: [cms, page, q] }
+  );
+  const rows = rowsData == null ? null : (Array.isArray(rowsData) ? rowsData : (rowsData.rows || []));
+  const total = rowsData == null ? 0 : (Array.isArray(rowsData) ? rowsData.length : (rowsData.total || 0));
 
   useEffect(() => {
     setPage(1);
   }, [cms]);
 
-  useEffect(() => {
-    if (cfg) {
-      setRows(null);
-      load();
-    }
-  }, [cms, page, q]);
-
   if (!cfg) return <Page title="Konten"><EmptyState title="Halaman tidak ditemukan" /></Page>;
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -154,7 +135,7 @@ export default function AdminUmum() {
       else await api(`/admin/${cfg.api}`, { method: 'POST', body: data });
       toast.success('Data berhasil disimpan.');
       setOpen(false);
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 
@@ -162,7 +143,7 @@ export default function AdminUmum() {
     try {
       await api(`/admin/${cfg.api}/${del.id}`, { method: 'DELETE' });
       toast.success('Data dihapus.');
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

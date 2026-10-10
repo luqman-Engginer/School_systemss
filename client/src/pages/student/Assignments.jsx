@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge, Avatar } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge, Avatar, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { ClipboardList, Send, Star } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function StudentAssignments() {
-  const [rows, setRows] = useState(null);
   const [open, setOpen] = useState(null);
   const [content, setContent] = useState('');
   const toast = useToast();
+  const { data: rows, error, retry } = useApi('/student/assignments');
 
-  const load = () => api('/student/assignments').then(setRows).catch(() => {});
-  useEffect(() => { load(); }, []);
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const submit = async (a) => {
@@ -19,7 +19,7 @@ export default function StudentAssignments() {
       await api(`/student/assignments/${a.id}/submit`, { method: 'POST', body: { content } });
       toast.success('Tugas dikumpulkan. Tunggu penilaian guru.');
       setOpen(null); setContent('');
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

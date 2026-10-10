@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
-import { api, mediaUrl } from '../../api';
-import { Spinner, Badge, EmptyState } from '../../components/ui';
+import { mediaUrl } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState, Badge, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 
 export default function Gallery() {
-  const [data, setData] = useState(null);
   const [cat, setCat] = useState('Semua');
   const [idx, setIdx] = useState(null);
-
-  useEffect(() => { api('/public/gallery').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/gallery');
   useEffect(() => {
     if (idx === null) return;
     const onKey = (e) => {
@@ -22,6 +21,7 @@ export default function Gallery() {
     return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
   }, [idx]);
 
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
   const cats = ['Semua', ...new Set(data.map((g) => g.category).filter(Boolean))];
   const items = data.filter((g) => cat === 'Semua' || g.category === cat);

@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, ProgressBar, Badge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, ProgressBar, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { BookOpen, ClipboardList, TrendingUp } from 'lucide-react';
 
 export default function StudentProgress() {
-  const [d, setD] = useState(null);
-  useEffect(() => { api('/student/progress').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/student/progress');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   return (

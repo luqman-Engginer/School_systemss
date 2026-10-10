@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Spinner } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { Eye, Target, Flag, Building2, Users } from 'lucide-react';
 
 export default function About() {
-  const [s, setS] = useState(null);
-  useEffect(() => { api('/public/about').then(setS).catch(() => {}); }, []);
+  const { data: s, error, retry } = useApi('/public/about');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!s) return <Spinner className="min-h-[60vh]" />;
 
   const blocks = [

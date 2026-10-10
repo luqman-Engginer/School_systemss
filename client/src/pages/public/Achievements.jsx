@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Spinner, EmptyState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { Trophy, Medal, Award } from 'lucide-react';
 
 export default function Achievements() {
-  const [data, setData] = useState(null);
-  useEffect(() => { api('/public/achievements').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/achievements');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
 
   const medals = { 'Juara 1': Trophy, 'Medali Emas': Trophy, 'Juara 2': Medal, 'Medali Perak': Medal, 'Juara 3': Award, 'Medali Perunggu': Award };

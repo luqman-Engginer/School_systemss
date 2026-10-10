@@ -1,33 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Modal, useToast, Badge, StatusBadge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Modal, useToast, Badge, StatusBadge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Plus, Video, MapPin, Pencil } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function TeacherMeetings() {
-  const [rows, setRows] = useState(null);
-  const [parents, setParents] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [meta, setMeta] = useState({});
+  const { data: rows, error, retry } = useApi('/teacher/meetings');
+  const { data: meta, error: metaError, retry: retryMeta } = useApi('/teacher/my-classes');
+  const cls = meta?.classes?.[0]?.id;
+  const { data: studentsData, error: studentsError, retry: retryStudents } = useApi(`/teacher/students?class_id=${cls}`, { enabled: !!cls });
+  const { data: parentsData, error: parentsError, retry: retryParents } = useApi('/teacher/parents', { enabled: !!cls });
+  const students = studentsData ?? [];
+  const parents = (parentsData ?? []).filter((p) => p.students.some((s) => s.class_id === cls));
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(null);
   const toast = useToast();
 
-  const load = () => Promise.all([api('/teacher/meetings'), api('/teacher/my-classes')])
-    .then(async ([m, mc]) => {
-      setRows(m);
-      setMeta(mc);
-      const cls = mc.classes[0]?.id;
-      if (cls) {
-        const sts = await api(`/teacher/students?class_id=${cls}`);
-        setStudents(sts);
-        const all = await api('/teacher/parents');
-        setParents(all.filter((p) => p.students.some((s) => s.class_id === cls)));
-      }
-    }).catch(() => {});
+  const load = () => { retry(); retryMeta(); retryStudents(); retryParents(); };
 
-  useEffect(() => { load(); }, []);
-  if (!rows) return <Spinner />;
+  if (error) return <ErrorState error={error} onRetry={retry} />;
+  if (metaError) return <ErrorState error={metaError} onRetry={retryMeta} />;
+  if (studentsError) return <ErrorState error={studentsError} onRetry={retryStudents} />;
+  if (parentsError) return <ErrorState error={parentsError} onRetry={retryParents} />;
+  if (!rows || !meta) return <Spinner />;
 
   const save = async (f) => {
     try {

@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, StatusBadge, Badge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, EmptyState, StatusBadge, Badge, ErrorState } from '../../components/ui';
 import { MessageSquare } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function ParentFeedback() {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const [d, setD] = useState(null);
-  useEffect(() => { api(`/parent/child/${childId}/feedback`).then(setD).catch(() => {}); }, [childId]);
+  const { data: d, error, retry } = useApi(`/parent/child/${childId}/feedback`, { enabled: !!childId, deps: [childId] });
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   return (

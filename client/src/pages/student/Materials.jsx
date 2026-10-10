@@ -1,23 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api, mediaUrl } from '../../api';
-import { Page, Card, Spinner, Badge, useToast, VideoModal, EmptyState } from '../../components/ui';
+import { Page, Card, Spinner, Badge, useToast, VideoModal, EmptyState, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { BookOpen, Play, CheckCircle2, Circle, Link2, FileText } from 'lucide-react';
 
 export default function StudentMaterials() {
-  const [rows, setRows] = useState(null);
   const [video, setVideo] = useState(null);
   const toast = useToast();
+  const { data: rows, error, retry } = useApi('/student/materials');
 
-  const load = () => api('/student/materials').then(setRows).catch(() => {});
-  useEffect(() => { load(); }, []);
-
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const setStatus = async (m, status) => {
     try {
       await api(`/student/materials/${m.id}/progress`, { method: 'POST', body: { status } });
       toast.success(status === 'COMPLETED' ? 'Materi ditandai selesai. Poin progress bertambah!' : 'Mulai dipelajari.');
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

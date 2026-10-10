@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Spinner } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { MapPin, Phone, Mail, Clock, Facebook, Instagram, Youtube, Twitter } from 'lucide-react';
 
 export default function Contact() {
-  const [s, setS] = useState(null);
-  useEffect(() => { api('/public/contact').then(setS).catch(() => {}); }, []);
+  const { data: s, error, retry } = useApi('/public/contact');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!s) return <Spinner className="min-h-[60vh]" />;
 
   const items = [

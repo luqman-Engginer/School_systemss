@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { api, mediaUrl } from '../../api';
-import { Spinner } from '../../components/ui';
+import { mediaUrl } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { BookOpen } from 'lucide-react';
 
 export default function Teachers() {
-  const [data, setData] = useState(null);
-  useEffect(() => { api('/public/teachers').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/teachers');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
 
   return (

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../../api';
-import { Page, Card, Spinner, ProgressBar, Badge, EmptyState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, ProgressBar, Badge, EmptyState, ErrorState } from '../../components/ui';
 import { BookOpen, UserCheck, AlertTriangle, MessageSquare, GraduationCap, ArrowUpRight } from 'lucide-react';
 import dayjs from 'dayjs';
 
@@ -10,22 +10,21 @@ export const selectChild = (id) => { try { localStorage.setItem('schoolhub_child
 export default function ParentChildOverview() {
   const { childId } = useParams();
   const navigate = useNavigate();
-  const [d, setD] = useState(null);
-  const [child, setChild] = useState(null);
+  const { data: overview, error: overviewError, retry: retryOverview } = useApi(`/parent/child/${childId}/overview`, { enabled: !!childId, deps: [childId] });
+  const { data: progress, error: progressError, retry: retryProgress } = useApi(`/parent/child/${childId}/progress`, { enabled: !!childId, deps: [childId] });
+  const { data: attendance, error: attendanceError, retry: retryAttendance } = useApi(`/parent/child/${childId}/attendance`, { enabled: !!childId, deps: [childId] });
+  const { data: kids, error: kidsError, retry: retryKids } = useApi('/parent/children');
 
-  useEffect(() => {
-    selectChild(childId);
-    Promise.all([api(`/parent/child/${childId}/overview`), api(`/parent/child/${childId}/progress`), api(`/parent/child/${childId}/attendance`), api('/parent/children')])
-      .then(([o, progress, att, kids]) => {
-        setD({ overview: o, progress, attendance: att });
-        setChild(kids.find((k) => String(k.student_id) === String(childId)) || { name: 'Anak' });
-      })
-      .catch(() => {});
-  }, [childId]);
+  useEffect(() => { selectChild(childId); }, [childId]);
 
-  if (!d || !child) return <Spinner />;
+  if (overviewError) return <ErrorState error={overviewError} onRetry={retryOverview} />;
+  if (progressError) return <ErrorState error={progressError} onRetry={retryProgress} />;
+  if (attendanceError) return <ErrorState error={attendanceError} onRetry={retryAttendance} />;
+  if (kidsError) return <ErrorState error={kidsError} onRetry={retryKids} />;
+  if (!overview || !progress || !attendance || !kids) return <Spinner />;
 
-  const { overview } = d;
+  const d = { overview, progress, attendance };
+  const child = kids.find((k) => String(k.student_id) === String(childId)) || { name: 'Anak' };
   const sum = (s) => d.attendance.summary.filter((x) => x.status === s).reduce((a, x) => a + x.c, 0);
   const attTotal = d.attendance.summary.reduce((a, x) => a + x.c, 0);
 

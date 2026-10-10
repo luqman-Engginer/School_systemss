@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api, getUser } from '../../api';
-import { Page, Card, Spinner, EmptyState, Badge, useToast } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Badge, useToast, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Send, MessageCircle } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function StudentDiscussions() {
-  const [rows, setRows] = useState(null);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState(null);
   const [text, setText] = useState('');
   const toast = useToast();
+  const { data: rows, error, retry } = useApi('/student/discussions');
 
-  const load = () => api('/student/discussions').then(setRows).catch(() => {});
-  useEffect(() => { load(); }, []);
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const openRoom = async (room) => {

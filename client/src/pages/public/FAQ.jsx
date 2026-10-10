@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Spinner, EmptyState } from '../../components/ui';
+import { useState } from 'react';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { ChevronDown } from 'lucide-react';
 
 const CATES = ['Umum', 'Akademik', 'Teknis'];
 
 export default function FAQ() {
-  const [data, setData] = useState(null);
   const [cat, setCat] = useState('Semua');
-  useEffect(() => { api('/public/faqs').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/faqs');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
   const cats = ['Semua', ...CATES];
   const items = data.filter((f) => cat === 'Semua' || f.category === cat);

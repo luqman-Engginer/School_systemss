@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, mediaUrl } from '../../api';
-import { Page, Card, Modal, StatusBadge, EmptyState, useToast, Spinner, Badge, Avatar } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Modal, StatusBadge, EmptyState, useToast, Spinner, Badge, Avatar, ErrorState } from '../../components/ui';
 import { Plus, Pencil } from 'lucide-react';
 
 const CONFIGS = {
@@ -72,28 +73,32 @@ export default function AdminAcademic() {
   const { section } = useParams();
   const cfg = CONFIGS[section];
   const toast = useToast();
-  const [rows, setRows] = useState(null);
-  const [opts, setOpts] = useState({});
+  const { data: rowsData, error, retry } = useApi(cfg ? `/admin/${cfg.api}?limit=100` : null, { enabled: !!cfg, deps: [section] });
+  const { data: programsData, error: programsError, retry: retryPrograms } = useApi('/admin/programs?limit=100', { deps: [section] });
+  const { data: yearsData, error: yearsError, retry: retryYears } = useApi('/admin/academic_years?limit=100', { deps: [section] });
+  const { data: classesData, error: classesError, retry: retryClasses } = useApi('/admin/classes?limit=100', { deps: [section] });
+  const { data: subjectsData, error: subjectsError, retry: retrySubjects } = useApi('/admin/subjects?limit=100', { deps: [section] });
+  const { data: teachersData, error: teachersError, retry: retryTeachers } = useApi('/admin/users?role=TEACHER&limit=100', { deps: [section] });
+  const { data: studentsData, error: studentsError, retry: retryStudents } = useApi('/admin/users?role=STUDENT&limit=100', { deps: [section] });
+
+  const toArr = (d) => (Array.isArray(d) ? d : (d?.rows || []));
+  const rows = rowsData == null ? null : toArr(rowsData);
+  const teachers = teachersData == null ? null : toArr(teachersData);
+  const students = studentsData == null ? null : toArr(studentsData);
+  const opts = {
+    programs: toArr(programsData),
+    years: toArr(yearsData),
+    classes: toArr(classesData),
+    subjects: toArr(subjectsData).map((s) => ({ id: s.id, display: s.name })),
+    teachers: toArr(teachersData).map((t) => ({ id: t.id, display: `${t.name} — ${t.position || 'Guru'}` }))
+  };
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(null);
-  const [teachers, setTeachers] = useState(null);
-  const [students, setStudents] = useState(null);
 
-  const loadAux = async () => {
-    const fetchData = (src) => api(`/admin/${src}${src.includes('?') ? '&limit=100' : '?limit=100'}`).then((r) => Array.isArray(r) ? r : (r?.rows || [])).catch(() => []);
-    const [programs, years, klasses, subjectsArr, teachersArr, studentsArr] = await Promise.all(['programs', 'academic_years', 'classes', 'subjects', 'users?role=TEACHER', 'users?role=STUDENT'].map(fetchData));
-    setOpts({ programs, years, classes: klasses, subjects: subjectsArr.map((s) => ({ id: s.id, display: s.name })), teachers: teachersArr.map((t) => ({ id: t.id, display: `${t.name} — ${t.position || 'Guru'}` })) });
-    setTeachers(teachersArr);
-    setStudents(studentsArr);
-  };
+  const anyError = error || programsError || yearsError || classesError || subjectsError || teachersError || studentsError;
+  const retryAll = () => { retry(); retryPrograms(); retryYears(); retryClasses(); retrySubjects(); retryTeachers(); retryStudents(); };
 
-  const load = () => {
-    if (!cfg) return;
-    api(`/admin/${cfg.api}?limit=100`).then((r) => setRows(Array.isArray(r) ? r : (r?.rows || []))).catch(() => {});
-  };
-
-  useEffect(() => { load(); loadAux(); }, [section]);
-
+  if (anyError) return <ErrorState error={anyError} onRetry={retryAll} />;
   if (section === 'guru' && !teachers) return <Spinner />;
   if (section === 'siswa' && !students) return <Spinner />;
   if (!CONFIGS[section] && section !== 'guru' && section !== 'siswa') return <Page title="Akademik"><EmptyState title="Bagian tidak ditemukan" /></Page>;
@@ -115,7 +120,7 @@ export default function AdminAcademic() {
       else await api(`/admin/${cfg.api}`, { method: 'POST', body: form });
       toast.success('Data akademik disimpan.');
       setOpen(false);
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

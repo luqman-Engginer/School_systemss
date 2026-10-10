@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Avatar, useToast } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Avatar, useToast, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Check, Clock, Cross, ShieldCheck, MessageSquareHeart, CheckCheck } from 'lucide-react';
 import dayjs from 'dayjs';
 
@@ -13,28 +14,23 @@ const STATUSES = [
 ];
 
 export default function TeacherAttendance() {
-  const [classes, setClasses] = useState([]);
+  const { data: classData, error: classError, retry: retryClasses } = useApi('/teacher/my-classes');
+  const classes = classData?.classes ?? [];
   const [selected, setSelected] = useState(null);
+  const activeClass = selected ?? classes[0]?.id ?? null;
   const [date, setDate] = useState(() => dayjs().format('YYYY-MM-DD'));
-  const [d, setD] = useState(null);
+  const { data: d, error, retry } = useApi(`/teacher/attendance?class_id=${activeClass}&date=${date}`, { enabled: !!activeClass });
   const [entries, setEntries] = useState({});
   const [saved, setSaved] = useState(false);
   const toast = useToast();
 
-  const load = () => {
-    if (!selected) return;
-    setD(null);
-    api(`/teacher/attendance?class_id=${selected}&date=${date}`).then((data) => {
-      setD(data);
-      const m = {};
-      data.students.forEach((s) => { m[s.student_id] = s.record?.status || 'PRESENT'; });
-      setEntries(m);
-      setSaved(false);
-    }).catch(() => {});
-  };
-
-  useEffect(() => { api('/teacher/my-classes').then((c) => { setClasses(c.classes); if (c.classes.length) setSelected(c.classes[0].id); }).catch(() => {}); }, []);
-  useEffect(() => { if (selected) load(); }, [selected, date]);
+  useEffect(() => {
+    if (!d) return;
+    const m = {};
+    d.students.forEach((s) => { m[s.student_id] = s.record?.status || 'PRESENT'; });
+    setEntries(m);
+    setSaved(false);
+  }, [d]);
 
   const markAllPresent = () => {
     if (!d?.students) return;
@@ -44,11 +40,13 @@ export default function TeacherAttendance() {
     setSaved(false);
   };
 
+  if (classError) return <ErrorState error={classError} onRetry={retryClasses} />;
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const submit = async () => {
     try {
-      await api('/teacher/attendance', { method: 'POST', body: { class_id: selected, date, entries: d.students.map((s) => ({ student_id: s.student_id, status: entries[s.student_id] || 'PRESENT' })) } });
+      await api('/teacher/attendance', { method: 'POST', body: { class_id: activeClass, date, entries: d.students.map((s) => ({ student_id: s.student_id, status: entries[s.student_id] || 'PRESENT' })) } });
       toast.success('Kehadiran disimpan.');
       setSaved(true);
     } catch (e) { toast.error(e.message); }
@@ -64,7 +62,7 @@ export default function TeacherAttendance() {
     <Page title="Presensi Kehadiran" subtitle="Catat kehadiran siswa di kelas Anda.">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <select className="select" value={selected || ''} onChange={(e) => setSelected(+e.target.value)}>
+          <select className="select" value={activeClass || ''} onChange={(e) => setSelected(+e.target.value)}>
             {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <input type="date" className="input !w-auto" value={date} onChange={(e) => setDate(e.target.value)} />

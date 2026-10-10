@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../api';
-import { Page, Stat, Card, Spinner, ProgressBar, EmptyState, Badge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Stat, Card, Spinner, ErrorState, ProgressBar, EmptyState, Badge } from '../../components/ui';
 import { BookOpen, ClipboardList, CalendarDays, AlertTriangle, Megaphone, BookMarked, Hourglass, ArrowUpRight, Clock, CheckCircle2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -9,9 +8,9 @@ import 'dayjs/locale/id';
 dayjs.locale('id');
 
 export default function StudentDashboard() {
-  const [d, setD] = useState(null);
   const navigate = useNavigate();
-  useEffect(() => { api('/student/dashboard').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/student/dashboard');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const mapProgress = (arr, key) => arr.reduce((m, x) => { m[x.status] = x.c; return m; }, {});

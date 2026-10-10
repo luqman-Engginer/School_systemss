@@ -1,23 +1,21 @@
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../../api';
-import { Page, Card, Spinner, ProgressBar, Badge, EmptyState, StatusBadge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, ProgressBar, Badge, EmptyState, StatusBadge, ErrorState } from '../../components/ui';
 import { BookOpen, CalendarCheck2, MessageSquare, ShieldAlert } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function ParentAcademic() {
   const { childId } = useParams();
-  const [d, setD] = useState(null);
-  const [overview, setOverview] = useState(null);
+  const { data: progress, error: progressError, retry: retryProgress } = useApi(`/parent/child/${childId}/progress`, { enabled: !!childId, deps: [childId] });
+  const { data: overview, error: overviewError, retry: retryOverview } = useApi(`/parent/child/${childId}/overview`, { enabled: !!childId, deps: [childId] });
+  const { data: grades, error: gradesError, retry: retryGrades } = useApi(`/parent/child/${childId}/grades`, { enabled: !!childId, deps: [childId] });
 
-  useEffect(() => {
-    Promise.all([api(`/parent/child/${childId}/progress`), api(`/parent/child/${childId}/overview`), api(`/parent/child/${childId}/grades`)])
-      .then(([p, o, g]) => { setD({ subjects: p, grades: g }); setOverview(o); })
-      .catch(() => {});
-  }, [childId]);
+  if (progressError) return <ErrorState error={progressError} onRetry={retryProgress} />;
+  if (overviewError) return <ErrorState error={overviewError} onRetry={retryOverview} />;
+  if (gradesError) return <ErrorState error={gradesError} onRetry={retryGrades} />;
+  if (!progress || !overview || !grades) return <Spinner />;
 
-  if (!d || !overview) return <Spinner />;
-
+  const d = { subjects: progress, grades };
   const lastGrades = d.grades.slice(0, 5);
 
   return (
