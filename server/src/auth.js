@@ -1,6 +1,16 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'schoolhub_demo_secret_change_in_production';
+const DEFAULT_SECRET = 'schoolhub_demo_secret_change_in_production';
+const rawSecret = process.env.JWT_SECRET;
+
+if (process.env.NODE_ENV === 'production') {
+  if (!rawSecret || rawSecret.trim() === '' || rawSecret === DEFAULT_SECRET || rawSecret.length < 32) {
+    console.error('ERROR: JWT_SECRET must be configured in production, cannot use the default value, and must be at least 32 characters long.');
+    process.exit(1);
+  }
+}
+
+const JWT_SECRET = rawSecret || DEFAULT_SECRET;
 const db = require('./db');
 
 function signToken(user) {

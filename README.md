@@ -22,29 +22,9 @@ project_skolah/
 
 ## Menjalankan
 
-Prasyarat: **MySQL 8.0.16+** atau **MariaDB 10.2+** yang sudah berjalan, lalu database (kosong) dibuat:
-
-```sql
-CREATE DATABASE schoolhub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-```bash
-# Backend
-cd server
-npm install
-DB_USER=root DB_PASSWORD=rahasia npm start   # atau npm run dev (auto-restart)
-
-# Frontend (development)
-cd client
-npm install
-npm run dev            # http://localhost:5173
-
-# Produksi/build frontend
-cd client
-npm run build          # hasil di client/dist, disajikan langsung oleh server
-```
-
-Semua tabel dibuat otomatis oleh `src/db.js` saat server pertama kali berjalan, lalu di-seed. **Untuk reset data demo, `DROP DATABASE schoolhub; CREATE DATABASE schoolhub ...` dan jalankan ulang server.**
+1. `cp server/.env.example server/.env`
+2. Edit password di `server/.env`
+3. `docker compose up`
 
 ## Deploy
 

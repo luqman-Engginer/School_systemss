@@ -99,18 +99,47 @@ export default function AdminUmum() {
   const cfg = CONFIGS[cms];
   const toast = useToast();
   const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const limit = 20;
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState(null);
   const [open, setOpen] = useState(false);
   const [del, setDel] = useState(null);
 
-  const load = () => api(`/admin/${cfg.api}`).then(setRows);
-  useEffect(() => { if (cfg) load(); }, [cms]);
+  const load = () => {
+    if (!cfg) return;
+    api(`/admin/${cfg.api}?q=${encodeURIComponent(q)}&page=${page}&limit=${limit}`)
+      .then((d) => {
+        if (Array.isArray(d)) {
+          setRows(d);
+          setTotal(d.length);
+        } else {
+          setRows(d.rows || []);
+          setTotal(d.total || 0);
+        }
+      })
+      .catch(() => {
+        setRows([]);
+        setTotal(0);
+      });
+  };
+
+  useEffect(() => {
+    setPage(1);
+  }, [cms]);
+
+  useEffect(() => {
+    if (cfg) {
+      setRows(null);
+      load();
+    }
+  }, [cms, page, q]);
 
   if (!cfg) return <Page title="Konten"><EmptyState title="Halaman tidak ditemukan" /></Page>;
   if (!rows) return <Spinner />;
 
-  const items = rows.filter((r) => (r[cfg.key] || '').toLowerCase().includes(q.toLowerCase()));
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const fieldVal = (f, row) => {
     const v = row[f.n];
@@ -139,18 +168,18 @@ export default function AdminUmum() {
 
   return (
     <Page title={`Kelola ${cfg.name}`} subtitle="CMS: kelola konten yang ditampilkan di website publik."
-      actions={<button className="btn-primary btn-sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus size={15} /> Tambah {cfg.name}</button>}>
+      actions={<button className="btn-primary btn-sm min-h-[44px] flex items-center gap-1.5" onClick={() => { setEditing(null); setOpen(true); }}><Plus size={15} /> Tambah {cfg.name}</button>}>
       <Card className="p-5">
         <div className="flex justify-end mb-4">
-          <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="input !pl-9 !w-64" placeholder="Cari..." value={q} onChange={(e) => setQ(e.target.value)} /></div>
+          <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="input !pl-9 !w-64" placeholder="Cari..." value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></div>
         </div>
         <div className="overflow-x-auto">
           <table className="table-shell">
             <thead><tr><th>#</th>{cfg.table.map((c) => <th key={c}>{c.replaceAll('_', ' ')}</th>)}<th className="text-right">Aksi</th></tr></thead>
             <tbody>
-              {items.map((r, i) => (
+              {rows.map((r, i) => (
                 <tr key={r.id} className="animate-fade-up">
-                  <td className="!text-slate-400">{i + 1}</td>
+                  <td className="!text-slate-400">{(page - 1) * limit + i + 1}</td>
                   {cfg.table.map((c) => (
                     <td key={c} className="max-w-[220px]">
                       {c === 'status' ? <StatusBadge status={r[c]} /> : c === 'active' ? <Badge tone={r[c] ? 'green' : 'slate'}>{r[c] ? 'Aktif' : 'Nonaktif'}</Badge> : <span className="line-clamp-1">{fieldVal({ n: c }, r)}</span>}
@@ -158,15 +187,43 @@ export default function AdminUmum() {
                   ))}
                   <td>
                     <div className="flex justify-end gap-1.5">
-                      <button className="btn-ghost btn-sm !px-2" onClick={() => { setEditing(r); setOpen(true); }}><Pencil size={15} /></button>
-                      <button className="btn-danger btn-sm !px-2" onClick={() => setDel(r)}><Trash2 size={15} /></button>
+                      <button className="btn-ghost btn-sm !px-2 min-h-[44px] min-w-[44px] flex items-center justify-center" onClick={() => { setEditing(r); setOpen(true); }} aria-label="Edit"><Pencil size={15} /></button>
+                      <button className="btn-danger btn-sm !px-2 min-h-[44px] min-w-[44px] flex items-center justify-center" onClick={() => setDel(r)} aria-label="Hapus"><Trash2 size={15} /></button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {items.length === 0 && <tr><td colSpan={cfg.table.length + 2}><EmptyState title="Belum ada data" /></td></tr>}
+              {rows.length === 0 && <tr><td colSpan={cfg.table.length + 2}><EmptyState title="Belum ada data" /></td></tr>}
             </tbody>
           </table>
+        </div>
+
+        {/* Tombol Sebelumnya & Berikutnya */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-5 pt-4 border-t border-slate-100">
+          <p className="text-xs text-slate-500 font-medium text-center sm:text-left">
+            Menampilkan <span className="font-bold text-slate-700">{total > 0 ? (page - 1) * limit + 1 : 0}</span> – <span className="font-bold text-slate-700">{Math.min(page * limit, total)}</span> dari <span className="font-bold text-slate-700">{total}</span> data
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn-outline btn-sm min-h-[44px] flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Sebelumnya
+            </button>
+            <span className="text-xs font-bold text-slate-700 px-3 py-2 bg-slate-100 rounded-xl">
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className="btn-outline btn-sm min-h-[44px] flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Berikutnya
+            </button>
+          </div>
         </div>
       </Card>
 

@@ -11,7 +11,7 @@ export default function AdminWali() {
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
-  const load = () => api('/admin/users?role=PARENT').then(setRows);
+  const load = () => api('/admin/users?role=PARENT&limit=100').then((d) => setRows(Array.isArray(d) ? d : (d.rows || [])));
   useEffect(() => { load(); api('/admin/users/options').then((d) => setStudents(d.students)).catch(() => {}); }, []);
 
   if (!rows) return <Spinner />;

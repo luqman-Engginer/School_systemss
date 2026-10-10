@@ -4,14 +4,53 @@ const { signToken, authenticate, db } = require('../auth');
 
 const router = express.Router();
 
+const failedLogins = new Map();
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILED_ATTEMPTS = 8;
+
+function isRateLimited(key) {
+  const now = Date.now();
+  const timestamps = failedLogins.get(key) || [];
+  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  if (recent.length !== timestamps.length) {
+    if (recent.length === 0) failedLogins.delete(key);
+    else failedLogins.set(key, recent);
+  }
+  return recent.length >= MAX_FAILED_ATTEMPTS;
+}
+
+function recordFailedLogin(key) {
+  const now = Date.now();
+  const timestamps = failedLogins.get(key) || [];
+  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  recent.push(now);
+  failedLogins.set(key, recent);
+}
+
+function clearFailedLogin(key) {
+  failedLogins.delete(key);
+}
+
 router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(422).json({ success: false, error: 'Email dan password wajib diisi.' });
-  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(String(email).trim().toLowerCase());
+
+  const normEmail = String(email).trim().toLowerCase();
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const key = `${ip}:${normEmail}`;
+
+  if (isRateLimited(key)) {
+    return res.status(429).json({ success: false, error: 'Terlalu banyak percobaan login gagal. Silakan coba lagi dalam 15 menit.' });
+  }
+
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').get(normEmail);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    recordFailedLogin(key);
     return res.status(401).json({ success: false, error: 'Email atau password salah.' });
   }
   if (user.status !== 'ACTIVE') return res.status(403).json({ success: false, error: 'Akun Anda dinonaktifkan. Hubungi admin.' });
+
+  clearFailedLogin(key);
   const token = signToken(user);
   await db.prepare('INSERT INTO activity_logs (user_id, action, entity, details) VALUES (?,?,?,?)').run(user.id, 'LOGIN', 'auth', `${user.email} login`);
   res.json({ success: true, data: { token, user: { id: user.id, name: user.name, email: user.email, role: user.role, photo: user.photo, phone: user.phone } } });

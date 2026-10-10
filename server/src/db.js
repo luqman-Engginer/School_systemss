@@ -438,7 +438,7 @@ const TABLES = [
     quiz_id INT NOT NULL,
     question TEXT NOT NULL,
     type VARCHAR(20) NOT NULL DEFAULT 'MULTIPLE',
-    options TEXT NOT NULL DEFAULT '[]',
+    options TEXT,
     correct_answer TEXT,
     score INT NOT NULL DEFAULT 1,
     PRIMARY KEY (id),
@@ -623,6 +623,60 @@ const TABLES = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
+async function ensureDatabase() {
+  const { database, ...rootConfig } = config;
+  const dbName = database || 'schoolhub';
+  const connection = await mysql.createConnection(rootConfig);
+  try {
+    const safeDbName = dbName.replace(/`/g, '``');
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${safeDbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+  } finally {
+    await connection.end();
+  }
+}
+
+async function ensureIndexes() {
+  const indexes = [
+    { table: 'users', name: 'idx_users_name', column: 'name' },
+    { table: 'users', name: 'idx_users_status', column: 'status' },
+    { table: 'news', name: 'idx_news_slug', column: 'slug' },
+    { table: 'news', name: 'idx_news_category', column: 'category' },
+    { table: 'news', name: 'idx_news_title', column: 'title' },
+    { table: 'events', name: 'idx_events_date', column: 'date' },
+    { table: 'events', name: 'idx_events_title', column: 'title' },
+    { table: 'gallery', name: 'idx_gallery_category', column: 'category' },
+    { table: 'gallery', name: 'idx_gallery_status', column: 'status' },
+    { table: 'achievements', name: 'idx_achievements_category', column: 'category' },
+    { table: 'achievements', name: 'idx_achievements_status', column: 'status' },
+    { table: 'faqs', name: 'idx_faqs_category', column: 'category' },
+    { table: 'announcements', name: 'idx_announcements_target', column: 'target_role' },
+    { table: 'announcements', name: 'idx_announcements_title', column: 'title' },
+    { table: 'school_rules', name: 'idx_school_rules_category', column: 'category' },
+    { table: 'school_rules', name: 'idx_school_rules_status', column: 'status' },
+    { table: 'learning_materials', name: 'idx_materials_subject', column: 'subject_id' },
+    { table: 'learning_materials', name: 'idx_materials_title', column: 'title' },
+    { table: 'assignments', name: 'idx_assignments_deadline', column: 'deadline' },
+    { table: 'assignments', name: 'idx_assignments_subject', column: 'subject_id' },
+    { table: 'attendance', name: 'idx_attendance_date', column: 'date' },
+    { table: 'attendance', name: 'idx_attendance_class', column: 'class_id' },
+    { table: 'activity_logs', name: 'idx_activity_created_at', column: 'created_at' }
+  ];
+
+  for (const idx of indexes) {
+    try {
+      const [rows] = await pool.query(
+        'SELECT COUNT(1) AS c FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
+        [idx.table, idx.name]
+      );
+      if (!rows[0] || Number(rows[0].c) === 0) {
+        await pool.query(`ALTER TABLE \`${idx.table}\` ADD INDEX \`${idx.name}\` (\`${idx.column}\`)`);
+      }
+    } catch {
+      // Abaikan jika tabel belum ada atau indeks sudah ada
+    }
+  }
+}
+
 // Menjalankan banyak statement sekaligus. Dipakai untuk setup awal (SCHEMA)
 // dan migrasi. Keamanan: input bukan dari user, dan multipleStatements hanya
 // diaktifkan pada koneksi ini lewat newPoolWithMode.
@@ -640,13 +694,16 @@ async function runStatements(statements) {
 const SCHEMA = TABLES;
 
 async function init() {
+  await ensureDatabase();
   await runStatements(SCHEMA);
+  await ensureIndexes();
 }
 
 async function close() {
   await pool.end();
 }
 
-module.exports = { pool, prepare, runStatements, init, close, SCHEMA };
+module.exports = { pool, prepare, runStatements, ensureDatabase, ensureIndexes, init, close, SCHEMA };
+
 
 

@@ -16,7 +16,7 @@ async function requireChild(req, res, next) {
 
 router.get('/dashboard', async (req, res) => {
   const children = await childrenOf(req.user.id);
-  const withData = children.map(async (c) => {
+  const withData = await Promise.all(children.map(async (c) => {
     const myClass = (await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ? AND status = \'ACTIVE\'').get(c.student_id))?.class_id || null;
     const classInfo = myClass ? await db.prepare('SELECT name, grade FROM classes WHERE id = ?').get(myClass) : null;
     const attendance = await db.prepare('SELECT status, COUNT(*) AS c FROM attendance WHERE student_id = ? GROUP BY status').all(c.student_id);
@@ -28,7 +28,7 @@ router.get('/dashboard', async (req, res) => {
       WHERE a.class_id = ? AND a.deadline >= UTC_DATE() ORDER BY a.deadline LIMIT 2`).all(c.student_id, myClass);
     const feedback = await db.prepare('SELECT f.content, u.name AS teacher_name, sub.name AS subject_name, f.created_at FROM feedbacks f LEFT JOIN users u ON u.id = f.teacher_id LEFT JOIN subjects sub ON sub.id = f.subject_id WHERE f.student_id = ? ORDER BY f.id DESC LIMIT 2').all(c.student_id);
     return { ...c, classInfo, attendance, progressPct: total ? Math.round((done / total) * 100) : 0, upcomingAssign, feedback };
-  });
+  }));
   const meetings = await db.prepare('SELECT m.*, s.name AS student_name FROM meetings m JOIN users s ON s.id = m.student_id WHERE m.parent_id = ? ORDER BY m.date DESC LIMIT 5').all(req.user.id);
   const notifications = (await db.prepare('SELECT COUNT(*) AS c FROM notifications WHERE recipient_id = ? AND is_read = 0').get(req.user.id)).c;
   res.json({ success: true, data: { children: withData, meetings, notifications } });
@@ -53,13 +53,15 @@ router.get('/child/:childId/progress', requireChild, async (req, res) => {
   const cid = req.params.childId;
   const myClass = (await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ? AND status = \'ACTIVE\'').get(cid))?.class_id || null;
   const subjects = myClass ? await db.prepare('SELECT id, name FROM subjects WHERE class_id = ?').all(myClass) : [];
-  const result = subjects.map(async (s) => {
+  const completedProgress = await db.prepare('SELECT material_id FROM learning_progress WHERE student_id = ? AND status = \'COMPLETED\'').all(cid);
+  const completedSet = new Set(completedProgress.map((p) => p.material_id));
+  const result = await Promise.all(subjects.map(async (s) => {
     const materials = await db.prepare('SELECT id FROM learning_materials WHERE subject_id = ? AND class_id = ? AND status = \'PUBLISHED\'').all(s.id, myClass);
-    const done = materials.filter(async (m) => { const p = await db.prepare('SELECT status FROM learning_progress WHERE student_id = ? AND material_id = ?').get(cid, m.id); return p && p.status === 'COMPLETED'; }).length;
+    const done = materials.filter((m) => completedSet.has(m.id)).length;
     const assignRows = await db.prepare('SELECT a.id, a.max_score, s.grade FROM assignments a LEFT JOIN assignment_submissions s ON s.assignment_id = a.id AND s.student_id = ? WHERE a.subject_id = ? AND a.class_id = ?').all(cid, s.id, myClass);
     const graded = assignRows.filter((a) => a.grade !== null);
     return { subject: s.name, materialsPct: materials.length ? Math.round((done / materials.length) * 100) : 0, assignmentsTotal: assignRows.length, graded: graded.length, avgGrade: graded.length ? Math.round(graded.reduce((acc, a) => acc + a.grade, 0) / graded.length) : null };
-  });
+  }));
   res.json({ success: true, data: result });
 });
 

@@ -98,12 +98,11 @@ router.get('/progress', async (req, res) => {
   const me = uid(req);
   const myClass = (await db.prepare(myClassQuery).get(me))?.class_id || null;
   const subjects = myClass ? await db.prepare('SELECT id, name FROM subjects WHERE class_id = ?').all(myClass) : [];
-  const result = subjects.map(async (s) => {
+  const completedProgress = await db.prepare('SELECT material_id FROM learning_progress WHERE student_id = ? AND status = \'COMPLETED\'').all(me);
+  const completedSet = new Set(completedProgress.map((p) => p.material_id));
+  const result = await Promise.all(subjects.map(async (s) => {
     const materials = await db.prepare('SELECT id FROM learning_materials WHERE subject_id = ? AND class_id = ? AND status = \'PUBLISHED\'').all(s.id, myClass);
-    const done = materials.filter(async (m) => {
-      const p = await db.prepare('SELECT status FROM learning_progress WHERE student_id = ? AND material_id = ?').get(me, m.id);
-      return p && p.status === 'COMPLETED';
-    }).length;
+    const done = materials.filter((m) => completedSet.has(m.id)).length;
     const assignRows = await db.prepare('SELECT a.id, a.max_score, s.grade FROM assignments a LEFT JOIN assignment_submissions s ON s.assignment_id = a.id AND s.student_id = ? WHERE a.subject_id = ? AND a.class_id = ?').all(me, s.id, myClass);
     const graded = assignRows.filter((a) => a.grade !== null);
     const avgGrade = graded.length ? Math.round(graded.reduce((acc, a) => acc + a.grade, 0) / graded.length) : null;
@@ -116,7 +115,7 @@ router.get('/progress', async (req, res) => {
       assignmentsDone: assignRows.filter((a) => a.grade !== null).length,
       avgGrade
     };
-  });
+  }));
   const totalMats = result.reduce((a, s) => a + s.materialsTotal, 0);
   const totalDone = result.reduce((a, s) => a + s.materialsDone, 0);
   res.json({ success: true, data: { subjects: result, overall: totalMats ? Math.round((totalDone / totalMats) * 100) : 0, totalMaterials: totalMats, doneMaterials: totalDone } });
@@ -181,17 +180,28 @@ router.post('/quizzes/:id/attempt', async (req, res) => {
   const answers = req.body?.answers || {};
   const quiz = await db.prepare('SELECT * FROM quizzes WHERE id = ?').get(req.params.id);
   if (!quiz) return res.status(404).json({ success: false, error: 'Quiz tidak ditemukan.' });
+
+  const myClass = (await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ? AND status = \'ACTIVE\'').get(me))?.class_id;
+  if (quiz.class_id !== myClass) return res.status(403).json({ success: false, error: 'Bukan kuis kelas Anda.' });
+
+  const existingCompleted = await db.prepare('SELECT id FROM quiz_attempts WHERE quiz_id = ? AND student_id = ? AND status = \'COMPLETED\'').get(quiz.id, me);
+  if (existingCompleted) return res.status(409).json({ success: false, error: 'Kuis sudah diselesaikan sebelumnya.' });
+
   const questions = await db.prepare('SELECT * FROM questions WHERE quiz_id = ?').all(quiz.id);
   let score = 0;
   let max = 0;
   for (const q of questions) {
     const ans = answers[q.id];
     max += q.score;
-    if (ans !== undefined && String(ans).toLowerCase() === String(q.correct_answer).toLowerCase()) score += q.score;
+    if (q.correct_answer !== null && q.correct_answer !== undefined && ans !== undefined && ans !== null && String(ans).trim().toLowerCase() === String(q.correct_answer).trim().toLowerCase()) {
+      score += q.score;
+    }
   }
   const pct = max ? Math.round((score / max) * 100) : 0;
-  await db.prepare('UPDATE quiz_attempts SET completed_at = UTC_TIMESTAMP(), score = ?, status = \'COMPLETED\' WHERE quiz_id = ? AND student_id = ? AND status = \'IN_PROGRESS\'').run(pct, quiz.id, me);
-  if ((await db.prepare('SELECT COUNT(*) AS c FROM quiz_attempts WHERE quiz_id = ? AND student_id = ?').get(quiz.id, me)).c === 0) {
+  const existingAttempt = await db.prepare('SELECT id FROM quiz_attempts WHERE quiz_id = ? AND student_id = ?').get(quiz.id, me);
+  if (existingAttempt) {
+    await db.prepare('UPDATE quiz_attempts SET completed_at = UTC_TIMESTAMP(), score = ?, status = \'COMPLETED\' WHERE id = ?').run(pct, existingAttempt.id);
+  } else {
     await db.prepare('INSERT INTO quiz_attempts (quiz_id, student_id, started_at, completed_at, score, status) VALUES (?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP(),?,?)').run(quiz.id, me, pct, 'COMPLETED');
   }
   res.json({ success: true, data: { score: pct, max, totalQuestions: questions.length } });

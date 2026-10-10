@@ -348,7 +348,9 @@ async function seed() {
   for (const qd of quizDefs) {
     const subjId = subjIds[qd.subject][0];
     const qid = await insert('quizzes', { title: qd.title, description: `Kuis singkat ${qd.subject} untuk mengukur pemahaman.`, subject_id: subjId, class_id: await classIdFor(subjId), teacher_id: await teacherIdFor(subjId), time_limit: 15, passing_score: 70, status: 'PUBLISHED' });
-    qd.qs.forEach(async (qq) => await insert('questions', { quiz_id: qid, question: qq[0], type: 'MULTIPLE', options: qq[1], correct_answer: qq[2], score: 25 }));
+    for (const qq of qd.qs) {
+      await insert('questions', { quiz_id: qid, question: qq[0], type: 'MULTIPLE', options: qq[1], correct_answer: qq[2], score: 25 });
+    }
   };
 
   // ---------- ASPIRATIONS ----------

@@ -16,7 +16,11 @@ server/uploads/
 
 # Logs
 *.log
+*.err
 npm-debug.log*
+
+# Probe / Temp scripts
+_probe.js
 
 # Editor / OS
 .vscode/

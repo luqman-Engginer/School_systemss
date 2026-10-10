@@ -98,20 +98,29 @@ router.get('/progress', async (req, res) => {
   const students = await db.prepare(`SELECT u.id AS student_id, u.name, u.photo FROM student_classes sc JOIN users u ON u.id = sc.student_id WHERE sc.class_id = ? AND sc.status = 'ACTIVE' ORDER BY u.name`).all(classId);
   const subjectsInClass = await db.prepare('SELECT id, name FROM subjects WHERE class_id = ? AND teacher_id = ?').all(classId, t);
   const materials = await db.prepare('SELECT id, title, subject_id FROM learning_materials WHERE class_id = ? AND teacher_id = ?').all(classId, t);
+
+  const studentIds = students.map((s) => s.student_id);
+  const completedByStudent = new Map();
+  if (studentIds.length > 0) {
+    const ph = studentIds.map(() => '?').join(',');
+    const completedProgress = await db.prepare(`SELECT student_id, material_id FROM learning_progress WHERE student_id IN (${ph}) AND status = 'COMPLETED'`).all(...studentIds);
+    for (const cp of completedProgress) {
+      if (!completedByStudent.has(cp.student_id)) {
+        completedByStudent.set(cp.student_id, new Set());
+      }
+      completedByStudent.get(cp.student_id).add(cp.material_id);
+    }
+  }
+
   const result = students.map((st) => {
+    const completedSet = completedByStudent.get(st.student_id) || new Set();
     const perSubject = subjectsInClass.map((sub) => {
       const items = materials.filter((m) => m.subject_id === sub.id);
-      const done = items.filter(async (m) => {
-        const p = await db.prepare('SELECT status FROM learning_progress WHERE student_id = ? AND material_id = ?').get(st.student_id, m.id);
-        return p && p.status === 'COMPLETED';
-      }).length;
+      const done = items.filter((m) => completedSet.has(m.id)).length;
       return { subject: sub.name, total: items.length, done, pct: items.length ? Math.round((done / items.length) * 100) : 0 };
     });
     const all = materials.length;
-    const allDone = materials.filter(async (m) => {
-      const p = await db.prepare('SELECT status FROM learning_progress WHERE student_id = ? AND material_id = ?').get(st.student_id, m.id);
-      return p && p.status === 'COMPLETED';
-    }).length;
+    const allDone = materials.filter((m) => completedSet.has(m.id)).length;
     return { ...st, overall: all ? Math.round((allDone / all) * 100) : 0, perSubject };
   });
   res.json({ success: true, data: result });
@@ -184,7 +193,34 @@ router.get('/attendance', async (req, res) => {
 
 router.post('/attendance', async (req, res) => {
   const { class_id, schedule_id, date, entries } = req.body || {};
-  if (!Array.isArray(entries) || !entries.length) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
+  if (!class_id || !Array.isArray(entries) || !entries.length) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
+  const t = await tid(req);
+
+  const authorized = await db.prepare(`
+    SELECT 1 FROM classes WHERE id = ? AND homeroom_teacher_id = ?
+    UNION
+    SELECT 1 FROM subjects WHERE class_id = ? AND teacher_id = ?
+    UNION
+    SELECT 1 FROM schedules WHERE class_id = ? AND teacher_id = ?
+  `).get(class_id, t, class_id, t, class_id, t);
+
+  if (!authorized) {
+    return res.status(403).json({ success: false, error: 'Anda tidak memiliki wewenang untuk mencatat kehadiran di kelas ini.' });
+  }
+
+  const validStatuses = new Set(['PRESENT', 'LATE', 'EXCUSED', 'SICK', 'ABSENT']);
+  const activeStudents = await db.prepare('SELECT student_id FROM student_classes WHERE class_id = ? AND status = \'ACTIVE\'').all(class_id);
+  const activeStudentSet = new Set(activeStudents.map((s) => s.student_id));
+
+  for (const e of entries) {
+    if (!activeStudentSet.has(e.student_id)) {
+      return res.status(422).json({ success: false, error: `Siswa ID ${e.student_id} bukan anggota aktif kelas ini.` });
+    }
+    if (!validStatuses.has(e.status)) {
+      return res.status(422).json({ success: false, error: `Status kehadiran tidak valid: ${e.status}` });
+    }
+  }
+
   const d = date || new Date().toISOString().slice(0, 10);
   const del = db.prepare('DELETE FROM attendance WHERE student_id = ? AND date = ? AND COALESCE(schedule_id, 0) = ?');
   const ins = db.prepare('INSERT INTO attendance (student_id, class_id, schedule_id, teacher_id, date, status, check_in_time, note) VALUES (?,?,?,?,?,?,?,?)');
@@ -312,20 +348,28 @@ router.get('/traffic', async (req, res) => {
   const subjectsInClass = await db.prepare('SELECT id, name FROM subjects WHERE class_id = ?').all(classId);
   const materials = await db.prepare('SELECT id, title, subject_id, meeting FROM learning_materials WHERE class_id = ?').all(classId);
 
+  const studentIds = students.map((s) => s.student_id);
+  const completedByStudent = new Map();
+  if (studentIds.length > 0) {
+    const ph = studentIds.map(() => '?').join(',');
+    const completedProgress = await db.prepare(`SELECT student_id, material_id FROM learning_progress WHERE student_id IN (${ph}) AND status = 'COMPLETED'`).all(...studentIds);
+    for (const cp of completedProgress) {
+      if (!completedByStudent.has(cp.student_id)) {
+        completedByStudent.set(cp.student_id, new Set());
+      }
+      completedByStudent.get(cp.student_id).add(cp.material_id);
+    }
+  }
+
   const studentRows = students.map((st) => {
+    const completedSet = completedByStudent.get(st.student_id) || new Set();
     const perSubject = subjectsInClass.map((sub) => {
       const items = materials.filter((m) => m.subject_id === sub.id);
-      const done = items.filter(async (m) => {
-        const p = await db.prepare('SELECT status FROM learning_progress WHERE student_id = ? AND material_id = ?').get(st.student_id, m.id);
-        return p && p.status === 'COMPLETED';
-      }).length;
+      const done = items.filter((m) => completedSet.has(m.id)).length;
       return { subject: sub.name, total: items.length, done, pct: items.length ? Math.round((done / items.length) * 100) : 0 };
     });
     const all = materials.length;
-    const allDone = materials.filter(async (m) => {
-      const p = await db.prepare('SELECT status FROM learning_progress WHERE student_id = ? AND material_id = ?').get(st.student_id, m.id);
-      return p && p.status === 'COMPLETED';
-    }).length;
+    const allDone = materials.filter((m) => completedSet.has(m.id)).length;
     return { ...st, overall: all ? Math.round((allDone / all) * 100) : 0, perSubject };
   });
 

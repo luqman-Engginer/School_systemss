@@ -80,7 +80,7 @@ export default function AdminAcademic() {
   const [students, setStudents] = useState(null);
 
   const loadAux = async () => {
-    const fetchData = (src) => api(`/admin/${src}`).then((r) => r).catch(() => []);
+    const fetchData = (src) => api(`/admin/${src}${src.includes('?') ? '&limit=100' : '?limit=100'}`).then((r) => Array.isArray(r) ? r : (r?.rows || [])).catch(() => []);
     const [programs, years, klasses, subjectsArr, teachersArr, studentsArr] = await Promise.all(['programs', 'academic_years', 'classes', 'subjects', 'users?role=TEACHER', 'users?role=STUDENT'].map(fetchData));
     setOpts({ programs, years, classes: klasses, subjects: subjectsArr.map((s) => ({ id: s.id, display: s.name })), teachers: teachersArr.map((t) => ({ id: t.id, display: `${t.name} — ${t.position || 'Guru'}` })) });
     setTeachers(teachersArr);
@@ -89,7 +89,7 @@ export default function AdminAcademic() {
 
   const load = () => {
     if (!cfg) return;
-    api(`/admin/${cfg.api}`).then(setRows).catch(() => {});
+    api(`/admin/${cfg.api}?limit=100`).then((r) => setRows(Array.isArray(r) ? r : (r?.rows || []))).catch(() => {});
   };
 
   useEffect(() => { load(); loadAux(); }, [section]);
