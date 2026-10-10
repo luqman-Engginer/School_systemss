@@ -1,9 +1,8 @@
 const mysql = require('mysql2/promise');
+// Semua waktu disimpan sebagai UTC.
+// SQLite lama memakai datetime('now') yang mengembalikan UTC,
+// jadi semua timestamp memakai UTC_TIMESTAMP().
 
-// Semua waktu disimpan sebagai UTC. SQLite lama memakai datetime('now') yang
-// mengembalikan UTC, jadi memakai CURRENT_TIMESTAMP (waktu lokal server) akan
-// menggeser seluruh data 8 jam di zona WIB. Karena itu semua timestamp memakai
-// UTC_TIMESTAMP() dan driver dikonfigurasi agar tidak mengonversi ulang.
 const config = {
   host: process.env.DB_HOST || '127.0.0.1',
   port: Number(process.env.DB_PORT) || 3306,
@@ -13,7 +12,7 @@ const config = {
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_POOL_SIZE) || 10,
   queueLimit: 0,
-  charset: 'utf8mb4_unicode_ci',
+  charset: 'utf8mb4',
   timezone: 'Z',
   dateStrings: true,
   supportBigNumbers: true,
@@ -22,12 +21,8 @@ const config = {
 
 const pool = mysql.createPool(config);
 
-// API ini meniru prepare/get/all/run dari node:sqlite supaya pemanggil tidak
-// perlu diubah selain menambahkan await. Bentuk parameternya sama persis (?).
-//
-// node:sqlite diam-diam mengubah undefined menjadi NULL, sedangkan mysql2
-// menolaknya. Tanpa normalisasi ini, satu field yang nilainya undefined akan
-// menggagalkan seluruh query. Perilaku lama dipertahankan di sini.
+// Meniru API node:sqlite agar kode lama
+// tidak perlu diubah terlalu banyak.
 const normalize = (params) =>
   params.map((p) => {
     if (p === undefined) return null;
@@ -41,17 +36,29 @@ class Statement {
   }
 
   async get(...params) {
-    const [rows] = await pool.execute(this.sql, normalize(params));
+    const [rows] = await pool.execute(
+      this.sql,
+      normalize(params)
+    );
+
     return rows[0];
   }
 
   async all(...params) {
-    const [rows] = await pool.execute(this.sql, normalize(params));
+    const [rows] = await pool.execute(
+      this.sql,
+      normalize(params)
+    );
+
     return rows;
   }
 
   async run(...params) {
-    const [result] = await pool.execute(this.sql, normalize(params));
+    const [result] = await pool.execute(
+      this.sql,
+      normalize(params)
+    );
+
     return {
       changes: result.affectedRows,
       lastInsertRowid: result.insertId || 0,
@@ -69,7 +76,7 @@ const TABLES = [
     password_hash VARCHAR(190) NOT NULL,
     role VARCHAR(20) NOT NULL,
     phone VARCHAR(40) NOT NULL DEFAULT '',
-    photo TEXT NOT NULL DEFAULT '',
+    photo TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     updated_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
@@ -85,7 +92,7 @@ const TABLES = [
     user_id INT NOT NULL,
     position VARCHAR(190) NOT NULL DEFAULT '',
     subject VARCHAR(190) NOT NULL DEFAULT '',
-    bio TEXT NOT NULL DEFAULT '',
+    bio TEXT,
     public_visible TINYINT(1) NOT NULL DEFAULT 1,
     PRIMARY KEY (id),
     UNIQUE KEY uq_teachers_user (user_id),
@@ -128,33 +135,33 @@ const TABLES = [
     school_name VARCHAR(190) NOT NULL DEFAULT '',
     short_name VARCHAR(190) NOT NULL DEFAULT '',
     slogan VARCHAR(255) NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
-    history TEXT NOT NULL DEFAULT '',
-    vision TEXT NOT NULL DEFAULT '',
-    mission TEXT NOT NULL DEFAULT '',
-    school_values TEXT NOT NULL DEFAULT '',
-    facilities TEXT NOT NULL DEFAULT '',
-    structure TEXT NOT NULL DEFAULT '',
-    logo TEXT NOT NULL DEFAULT '',
-    favicon TEXT NOT NULL DEFAULT '',
-    hero_image TEXT NOT NULL DEFAULT '',
-    banner TEXT NOT NULL DEFAULT '',
+    description TEXT,
+    history TEXT,
+    vision TEXT,
+    mission TEXT,
+    school_values TEXT,
+    facilities TEXT,
+    structure TEXT,
+    logo TEXT,
+    favicon TEXT,
+    hero_image TEXT,
+    banner TEXT,
     primary_color VARCHAR(20) NOT NULL DEFAULT '#4f46e5',
     secondary_color VARCHAR(20) NOT NULL DEFAULT '#0ea5e9',
     website_name VARCHAR(190) NOT NULL DEFAULT 'SchoolHub',
     phone VARCHAR(40) NOT NULL DEFAULT '',
     whatsapp VARCHAR(40) NOT NULL DEFAULT '',
     email VARCHAR(190) NOT NULL DEFAULT '',
-    address TEXT NOT NULL DEFAULT '',
+    address TEXT,
     operating_hours VARCHAR(190) NOT NULL DEFAULT '',
-    maps_url TEXT NOT NULL DEFAULT '',
+    maps_url TEXT,
     latitude VARCHAR(60) NOT NULL DEFAULT '',
     longitude VARCHAR(60) NOT NULL DEFAULT '',
-    instagram TEXT NOT NULL DEFAULT '',
-    facebook TEXT NOT NULL DEFAULT '',
-    youtube TEXT NOT NULL DEFAULT '',
-    tiktok TEXT NOT NULL DEFAULT '',
-    twitter TEXT NOT NULL DEFAULT '',
+    instagram TEXT,
+    facebook TEXT,
+    youtube TEXT,
+    tiktok TEXT,
+    twitter TEXT,
     updated_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     PRIMARY KEY (id),
     CONSTRAINT ck_settings_singleton CHECK (id = 1)
@@ -174,7 +181,7 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     name VARCHAR(190) NOT NULL,
     code VARCHAR(60) NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
+    description TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED',
     PRIMARY KEY (id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
@@ -197,7 +204,7 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     name VARCHAR(190) NOT NULL,
     code VARCHAR(60) NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
+    description TEXT,
     teacher_id INT DEFAULT NULL,
     class_id INT DEFAULT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
@@ -241,8 +248,8 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL DEFAULT '',
-    content TEXT NOT NULL DEFAULT '',
-    thumbnail TEXT NOT NULL DEFAULT '',
+    content TEXT,
+    thumbnail TEXT,
     category VARCHAR(190) NOT NULL DEFAULT '',
     author_id INT DEFAULT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
@@ -257,12 +264,12 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS events (
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
+    description TEXT,
     date VARCHAR(20) NOT NULL DEFAULT '',
     start_time VARCHAR(10) NOT NULL DEFAULT '',
     end_time VARCHAR(10) NOT NULL DEFAULT '',
     location VARCHAR(255) NOT NULL DEFAULT '',
-    poster TEXT NOT NULL DEFAULT '',
+    poster TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
     PRIMARY KEY (id),
     KEY idx_events_status (status),
@@ -271,9 +278,9 @@ const TABLES = [
 
   `CREATE TABLE IF NOT EXISTS gallery (
     id INT NOT NULL AUTO_INCREMENT,
-    image TEXT NOT NULL DEFAULT '',
+    image TEXT,
     title VARCHAR(255) NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
+    description TEXT,
     category VARCHAR(190) NOT NULL DEFAULT 'Kegiatan Sekolah',
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
@@ -289,8 +296,8 @@ const TABLES = [
     competition VARCHAR(255) NOT NULL DEFAULT '',
     rank VARCHAR(60) NOT NULL DEFAULT '',
     year VARCHAR(20) NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
-    documentation TEXT NOT NULL DEFAULT '',
+    description TEXT,
+    documentation TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
     PRIMARY KEY (id),
     CONSTRAINT ck_achievements_status CHECK (status IN ('DRAFT','PUBLISHED','ARCHIVED'))
@@ -299,7 +306,7 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS faqs (
     id INT NOT NULL AUTO_INCREMENT,
     question VARCHAR(255) NOT NULL,
-    answer TEXT NOT NULL DEFAULT '',
+    answer TEXT,
     category VARCHAR(190) NOT NULL DEFAULT 'Umum',
     sort_order INT NOT NULL DEFAULT 0,
     active TINYINT(1) NOT NULL DEFAULT 1,
@@ -309,7 +316,7 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS announcements (
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL DEFAULT '',
+    content TEXT,
     target_role VARCHAR(40) NOT NULL DEFAULT 'ALL',
     author_id INT DEFAULT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED',
@@ -322,7 +329,7 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
     category VARCHAR(190) NOT NULL DEFAULT 'Ketertiban',
-    content TEXT NOT NULL DEFAULT '',
+    content TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'PUBLISHED',
     version VARCHAR(20) NOT NULL DEFAULT '1.0',
     effective_date VARCHAR(20) NOT NULL DEFAULT '',
@@ -332,10 +339,10 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS learning_materials (
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    file_url TEXT NOT NULL DEFAULT '',
-    video_url TEXT NOT NULL DEFAULT '',
-    external_link TEXT NOT NULL DEFAULT '',
+    description TEXT,
+    file_url TEXT,
+    video_url TEXT,
+    external_link TEXT,
     subject_id INT DEFAULT NULL,
     class_id INT DEFAULT NULL,
     teacher_id INT DEFAULT NULL,
@@ -372,9 +379,9 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS assignments (
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    instructions TEXT NOT NULL DEFAULT '',
-    attachment TEXT NOT NULL DEFAULT '',
+    description TEXT,
+    instructions TEXT,
+    attachment TEXT,
     subject_id INT DEFAULT NULL,
     class_id INT DEFAULT NULL,
     teacher_id INT DEFAULT NULL,
@@ -394,13 +401,13 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     assignment_id INT NOT NULL,
     student_id INT NOT NULL,
-    content TEXT NOT NULL DEFAULT '',
-    attachment TEXT NOT NULL DEFAULT '',
+    content TEXT,
+    attachment TEXT,
     submitted_at DATETIME DEFAULT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED',
     grade DOUBLE DEFAULT NULL,
     max_score INT NOT NULL DEFAULT 100,
-    feedback TEXT NOT NULL DEFAULT '',
+    feedback TEXT,
     PRIMARY KEY (id),
     UNIQUE KEY uq_submission (assignment_id, student_id),
     KEY idx_assignment_submissions_student (student_id),
@@ -412,7 +419,7 @@ const TABLES = [
   `CREATE TABLE IF NOT EXISTS quizzes (
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
+    description TEXT,
     subject_id INT DEFAULT NULL,
     class_id INT DEFAULT NULL,
     teacher_id INT DEFAULT NULL,
@@ -432,7 +439,7 @@ const TABLES = [
     question TEXT NOT NULL,
     type VARCHAR(20) NOT NULL DEFAULT 'MULTIPLE',
     options TEXT NOT NULL DEFAULT '[]',
-    correct_answer TEXT NOT NULL DEFAULT '',
+    correct_answer TEXT,
     score INT NOT NULL DEFAULT 1,
     PRIMARY KEY (id),
     KEY idx_questions_quiz (quiz_id),
@@ -459,7 +466,7 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
     topic VARCHAR(255) NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
+    description TEXT,
     creator_id INT DEFAULT NULL,
     type VARCHAR(40) NOT NULL DEFAULT 'CLASS_DISCUSSION',
     start_date VARCHAR(20) NOT NULL DEFAULT '',
@@ -486,8 +493,8 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     room_id INT NOT NULL,
     sender_id INT NOT NULL,
-    content TEXT NOT NULL DEFAULT '',
-    attachment TEXT NOT NULL DEFAULT '',
+    content TEXT,
+    attachment TEXT,
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     read_at DATETIME DEFAULT NULL,
     PRIMARY KEY (id),
@@ -508,7 +515,7 @@ const TABLES = [
     location VARCHAR(255) NOT NULL DEFAULT '',
     meeting_type VARCHAR(20) NOT NULL DEFAULT 'OFFLINE',
     status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED',
-    notes TEXT NOT NULL DEFAULT '',
+    notes TEXT,
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     PRIMARY KEY (id),
     KEY idx_meetings_parent (parent_id),
@@ -524,11 +531,11 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     student_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL DEFAULT '',
+    content TEXT,
     category VARCHAR(190) NOT NULL DEFAULT 'Saran',
     anonymous TINYINT(1) NOT NULL DEFAULT 0,
     status VARCHAR(30) NOT NULL DEFAULT 'SUBMITTED',
-    admin_response TEXT NOT NULL DEFAULT '',
+    admin_response TEXT,
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     updated_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     PRIMARY KEY (id),
@@ -561,12 +568,12 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     student_id INT NOT NULL,
     category VARCHAR(190) NOT NULL DEFAULT 'Kedisiplinan',
-    description TEXT NOT NULL DEFAULT '',
+    description TEXT,
     point INT NOT NULL DEFAULT 0,
     date VARCHAR(20) NOT NULL DEFAULT (UTC_DATE()),
     reporter_id INT DEFAULT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
-    notes TEXT NOT NULL DEFAULT '',
+    notes TEXT,
     PRIMARY KEY (id),
     KEY idx_discipline_student (student_id),
     CONSTRAINT ck_discipline_status CHECK (status IN ('OPEN','RESOLVED')),
@@ -579,7 +586,7 @@ const TABLES = [
     recipient_id INT NOT NULL,
     type VARCHAR(60) NOT NULL DEFAULT 'SYSTEM',
     title VARCHAR(255) NOT NULL,
-    message TEXT NOT NULL DEFAULT '',
+    message TEXT,
     related_id INT DEFAULT NULL,
     is_read TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
@@ -593,7 +600,7 @@ const TABLES = [
     user_id INT DEFAULT NULL,
     action VARCHAR(190) NOT NULL,
     entity VARCHAR(190) NOT NULL DEFAULT '',
-    details TEXT NOT NULL DEFAULT '',
+    details TEXT,
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     PRIMARY KEY (id),
     KEY idx_activity_user (user_id),
@@ -604,7 +611,7 @@ const TABLES = [
     id INT NOT NULL AUTO_INCREMENT,
     teacher_id INT NOT NULL,
     student_id INT NOT NULL,
-    content TEXT NOT NULL DEFAULT '',
+    content TEXT,
     subject_id INT DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP()),
     PRIMARY KEY (id),
@@ -641,3 +648,5 @@ async function close() {
 }
 
 module.exports = { pool, prepare, runStatements, init, close, SCHEMA };
+
+
