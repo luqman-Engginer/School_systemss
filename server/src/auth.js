@@ -5,8 +5,14 @@ const rawSecret = process.env.JWT_SECRET;
 
 if (process.env.NODE_ENV === 'production') {
   if (!rawSecret || rawSecret.trim() === '' || rawSecret === DEFAULT_SECRET || rawSecret.length < 32) {
-    console.error('ERROR: JWT_SECRET must be configured in production, cannot use the default value, and must be at least 32 characters long.');
-    process.exit(1);
+    console.error(
+      '╔══════════════════════════════════════════════════════════════╗\n' +
+      '║  PERINGATAN KEAMANAN: JWT_SECRET belum dikonfigurasi!       ║\n' +
+      '║  Server tetap jalan TAPI TIDAK AMAN untuk production.      ║\n' +
+      '║  Set JWT_SECRET (min 32 karakter) di environment variables. ║\n' +
+      '║  Buat dengan: openssl rand -base64 48                      ║\n' +
+      '╚══════════════════════════════════════════════════════════════╝'
+    );
   }
 }
 

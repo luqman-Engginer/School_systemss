@@ -3,6 +3,16 @@ const USER_KEY = 'sh_user';
 
 const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
+// Peringatan bagi developer ketika VITE_API_URL kosong di production build.
+// Tanpa BASE_URL, semua request /api/* mengarah ke origin Vercel sendiri dan
+// di-rewrite ke index.html (HTML bukan JSON) → halaman kosong, login gagal.
+if (import.meta.env.PROD && !BASE_URL) {
+  console.warn(
+    '[SchoolHub] VITE_API_URL tidak diset! Semua panggilan API akan gagal.\n' +
+    'Set VITE_API_URL di Vercel → Settings → Environment Variables, lalu redeploy.'
+  );
+}
+
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 700;
