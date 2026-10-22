@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Modal, StatusBadge, EmptyState, useToast, Spinner, Badge } from '../../components/ui';
+import { Page, Card, Modal, StatusBadge, EmptyState, useToast, Spinner, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Plus, Pencil, Trash2, Link2, PlaySquare, FileText } from 'lucide-react';
 
 export default function TeacherMaterials() {
-  const [rows, setRows] = useState(null);
-  const [meta, setMeta] = useState({ subjects: [], classes: [] });
+  const { data: rows, error, retry } = useApi('/teacher/materials');
+  const { data: myClasses, error: metaError, retry: retryMeta } = useApi('/teacher/my-classes');
+  const meta = myClasses ? { subjects: myClasses.subjects, classes: myClasses.classes } : { subjects: [], classes: [] };
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(null);
   const toast = useToast();
 
-  const load = () => Promise.all([api('/teacher/materials'), api('/teacher/my-classes')])
-    .then(([m, mc]) => { setRows(m); setMeta({ subjects: mc.subjects, classes: mc.classes }); });
+  const load = () => { retry(); retryMeta(); };
 
-  useEffect(() => { load(); }, []);
-
-  if (!rows) return <Spinner />;
+  if (error) return <ErrorState error={error} onRetry={retry} />;
+  if (metaError) return <ErrorState error={metaError} onRetry={retryMeta} />;
+  if (!rows || !myClasses) return <Spinner />;
 
   const save = async (f) => {
     try {

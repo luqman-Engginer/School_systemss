@@ -3,6 +3,16 @@ const USER_KEY = 'sh_user';
 
 const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
+// Peringatan bagi developer ketika VITE_API_URL kosong di production build.
+// Tanpa BASE_URL, semua request /api/* mengarah ke origin Vercel sendiri dan
+// di-rewrite ke index.html (HTML bukan JSON) → halaman kosong, login gagal.
+if (import.meta.env.PROD && !BASE_URL) {
+  console.warn(
+    '[SchoolHub] VITE_API_URL tidak diset! Semua panggilan API akan gagal.\n' +
+    'Set VITE_API_URL di Vercel → Settings → Environment Variables, lalu redeploy.'
+  );
+}
+
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 700;
@@ -106,33 +116,48 @@ export async function api(path, { method = 'GET', body, form } = {}) {
     failures = 0;
     emit('online');
 
+    // Respon HTML (mis. SPA rewrite menelan /api saat VITE_API_URL kosong)
+    // tidak boleh dianggap sukses. Lempar error agar halaman berhenti
+    // menampilkan spinner dan menampilkan pesan yang jelas.
     let json;
     try {
       json = await res.json();
     } catch {
-      const ct = res.headers.get('content-type') || '?';
-      json = {
-        success: false,
-        error: res.ok
-          ? `Respon server tidak valid (bukan JSON, ${ct}). Periksa VITE_API_URL.`
-          : `Respon server tidak valid (${res.status}, ${ct}). Pastikan VITE_API_URL menunjuk ke backend API.`,
-      };
+      const ct = res.headers.get('content-type') || 'tanpa content-type';
+      const err = new Error(
+        res.ok
+          ? `Respon server tidak valid (bukan JSON, ${ct}). Pastikan VITE_API_URL menunjuk ke backend API.`
+          : `Respon server tidak valid (${res.status}, ${ct}).`
+      );
+      err.status = res.status;
+      throw err;
     }
 
-    if (res.ok) return json.data;
+    if (!res.ok) {
+      const err = new Error(json.error || `Request gagal (${res.status})`);
+      err.status = res.status;
 
-    const err = new Error(json.error || `Request gagal (${res.status})`);
-    err.status = res.status;
-    if (!RETRYABLE_STATUS.has(res.status)) throw err;
+      // Sesi tidak valid/kedaluwarsa: bersihkan token dan beri tahu aplikasi
+      // agar pengguna diarahkan ke halaman login, bukan tersangkut di spinner.
+      if (res.status === 401) {
+        setToken(null);
+        setUser(null);
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('sh:unauthorized'));
+      }
 
-    lastError = err;
-    if (attempt < MAX_ATTEMPTS) {
-      await sleep(RETRY_BASE_MS * attempt);
-      continue;
+      if (!RETRYABLE_STATUS.has(res.status)) throw err;
+
+      lastError = err;
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(RETRY_BASE_MS * attempt);
+        continue;
+      }
+      // Retryable habis. Perlakukan sama dengan gagal konektivitas: kemungkinan
+      // besar proses backend sedang restart atau tidak merespons.
+      break;
     }
-    // Retryable habis. Perlakukan sama dengan gagal konektivitas: kemungkinan
-    // besar proses backend sedang restart atau tidak merespons.
-    break;
+
+    return json.data;
   }
 
   failures += 1;

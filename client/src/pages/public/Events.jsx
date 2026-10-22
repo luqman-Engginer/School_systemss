@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, mediaUrl } from '../../api';
-import { Spinner, Badge, EmptyState } from '../../components/ui';
+import { mediaUrl } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState, Badge, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { CalendarDays, MapPin, Clock, ArrowRight, Users, Ticket } from 'lucide-react';
 
@@ -13,8 +13,8 @@ const EVENT_TONE = (e) => {
 };
 
 export default function Events() {
-  const [data, setData] = useState(null);
-  useEffect(() => { api('/public/events').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/events');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
   const upcoming = data.filter((e) => new Date(e.date + 'T00:00:00') >= new Date());
   const past = data.filter((e) => new Date(e.date + 'T00:00:00') < new Date());
@@ -83,10 +83,9 @@ export default function Events() {
 
 export function EventsDetail() {
   const { id } = useParams();
-  const [data, setData] = useState(null);
-  const [err, setErr] = useState(false);
-  useEffect(() => { api(`/public/events/${id}`).then(setData).catch(() => setErr(true)); }, [id]);
-  if (err || (data && !data.title)) return <div className="py-32 text-center"><EmptyState title="Event tidak ditemukan" /></div>;
+  const { data, error, retry } = useApi(`/public/events/${id}`, { deps: [id] });
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
+  if (data && !data.title) return <div className="py-32 text-center"><EmptyState title="Event tidak ditemukan" /></div>;
   if (!data) return <Spinner className="min-h-[60vh]" />;
 
   return (

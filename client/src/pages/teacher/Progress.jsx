@@ -1,29 +1,22 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, ProgressBar, Avatar, Badge } from '../../components/ui';
+import { useState } from 'react';
+import { Page, Card, Spinner, EmptyState, ProgressBar, Avatar, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 
 export default function TeacherProgress() {
-  const [classes, setClasses] = useState([]);
+  const { data: classData, error: classError, retry: retryClasses } = useApi('/teacher/my-classes');
+  const classes = classData?.classes ?? [];
   const [selected, setSelected] = useState(null);
-  const [rows, setRows] = useState(null);
+  const activeClass = selected ?? classes[0]?.id ?? null;
+  const { data: rows, error, retry } = useApi(`/teacher/progress?class_id=${activeClass}`, { enabled: !!activeClass });
 
-  useEffect(() => {
-    api('/teacher/my-classes').then((d) => {
-      setClasses(d.classes);
-      if (d.classes.length) { setSelected(d.classes[0].id); }
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (selected) api(`/teacher/progress?class_id=${selected}`).then(setRows).catch(() => {});
-    else setRows(null);
-  }, [selected]);
+  if (classError) return <ErrorState error={classError} onRetry={retryClasses} />;
+  if (error) return <ErrorState error={error} onRetry={retry} />;
 
   return (
     <Page title="Progress Belajar Siswa" subtitle="Pantau tuntasnya materi pembelajaran per siswa di kelas Anda.">
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <label className="text-sm font-semibold text-slate-600">Pilih Kelas:</label>
-        <select className="select" value={selected || ''} onChange={(e) => setSelected(+e.target.value)}>
+        <select className="select" value={activeClass || ''} onChange={(e) => setSelected(+e.target.value)}>
           {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>

@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../../api';
-import { Spinner } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { GraduationCap, ArrowRight } from 'lucide-react';
 
 export default function Programs() {
-  const [data, setData] = useState(null);
-  useEffect(() => { api('/public/programs').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/programs');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
 
   return (

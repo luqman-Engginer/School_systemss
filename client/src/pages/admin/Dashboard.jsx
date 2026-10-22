@@ -1,16 +1,15 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../api';
-import { Page, Stat, Card, Spinner, StatusBadge, Badge, ProgressBar, Avatar } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Stat, Card, Spinner, ErrorState, StatusBadge, Badge, ProgressBar, Avatar } from '../../components/ui';
 import {
   Users, GraduationCap, UserCog, Baby, NotebookPen,
   Megaphone, ArrowUpRight, Activity
 } from 'lucide-react';
 
 export default function AdminDashboard() {
-  const [d, setD] = useState(null);
   const navigate = useNavigate();
-  useEffect(() => { api('/admin/dashboard').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/admin/dashboard');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const roleTotals = d.roleBreakdown.reduce((a, r) => ({ ...a, [r.role]: r.c }), {});

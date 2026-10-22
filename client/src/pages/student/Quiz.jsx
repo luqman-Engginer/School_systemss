@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { BrainCircuit, Play, Award, CheckCircle2 } from 'lucide-react';
 
 export default function StudentQuiz() {
-  const [rows, setRows] = useState(null);
   const [quiz, setQuiz] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const toast = useToast();
+  const { data: rows, error, retry } = useApi('/student/quizzes');
 
-  useEffect(() => { api('/student/quizzes').then(setRows).catch(() => {}); }, []);
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const start = async (q) => {
@@ -34,7 +35,7 @@ export default function StudentQuiz() {
       const r = await api(`/student/quizzes/${quiz.id}/attempt`, { method: 'POST', body: { answers } });
       setResult(r);
       toast.success(`Skor Anda: ${r.score}%`);
-      api('/student/quizzes').then(setRows).catch(() => {});
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

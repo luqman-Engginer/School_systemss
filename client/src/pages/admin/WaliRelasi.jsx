@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Modal, Spinner, useToast, Avatar, EmptyState, Badge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Modal, Spinner, useToast, Avatar, EmptyState, Badge, ErrorState } from '../../components/ui';
 import { HeartHandshake, Pencil } from 'lucide-react';
 
 export default function AdminWali() {
-  const [rows, setRows] = useState(null);
+  const { data: rowsData, error, retry } = useApi('/admin/users?role=PARENT&limit=100');
+  const rows = rowsData == null ? null : (Array.isArray(rowsData) ? rowsData : (rowsData.rows || []));
   const [students, setStudents] = useState([]);
   const [sel, setSel] = useState(null);
   const [links, setLinks] = useState([]);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
-  const load = () => api('/admin/users?role=PARENT').then(setRows);
-  useEffect(() => { load(); api('/admin/users/options').then((d) => setStudents(d.students)).catch(() => {}); }, []);
+  useEffect(() => { api('/admin/users/options').then((d) => setStudents(d.students)).catch(() => {}); }, []);
 
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const open = async (p) => {
@@ -41,7 +43,7 @@ export default function AdminWali() {
     try {
       await api(`/admin/users/${sel.id}`, { method: 'PUT', body: { children: next } });
       toast.success('Relasi wali–siswa diperbarui.');
-      load();
+      retry();
     } catch (e) {
       toast.error(e.message);
       setLinks(sel.detail?.children || []);

@@ -1,19 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api, getUser } from '../../api';
-import { Page, Card, Spinner, EmptyState, Modal, useToast, Avatar, Badge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Modal, useToast, Avatar, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Plus, Send, Users, MessageCircle } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function TeacherDiscussions() {
-  const [rows, setRows] = useState(null);
+  const { data: rows, error, retry } = useApi('/teacher/discussions');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(null);
   const [messages, setMessages] = useState(null);
   const [text, setText] = useState('');
   const toast = useToast();
 
-  const load = () => api('/teacher/discussions').then(setRows).catch(() => {});
-  useEffect(() => { load(); }, []);
+  const load = () => retry();
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const openRoom = async (room) => {
@@ -97,21 +98,17 @@ export function MessageBubble({ m }) {
 
 function NewRoomForm({ onClose, onCreated }) {
   const [f, setF] = useState({ title: '', type: 'CLASS_DISCUSSION', description: '', start_date: dayjs().format('YYYY-MM-DD') });
-  const [classes, setClasses] = useState([]);
   const [members, setMembers] = useState([]);
-  const [classSel, setClassSel] = useState('');
-  const [students, setStudents] = useState([]);
   const toast = useToast();
+  const { data: classData, error: classError, retry: retryClasses } = useApi('/teacher/my-classes');
+  const classes = classData?.classes ?? [];
+  const [classSel, setClassSel] = useState('');
+  const activeClass = classSel || classes[0]?.id || '';
+  const { data: studentsData, error: studentsError, retry: retryStudents } = useApi(`/teacher/students?class_id=${activeClass}`, { enabled: !!activeClass });
+  const students = studentsData ?? [];
 
-  useEffect(() => {
-    api('/teacher/my-classes').then((mc) => {
-      setClasses(mc.classes);
-      if (mc.classes.length) setClassSel(mc.classes[0].id);
-    }).catch(() => {});
-  }, []);
-  useEffect(() => {
-    if (classSel) api(`/teacher/students?class_id=${classSel}`).then(setStudents).catch(() => {});
-  }, [classSel]);
+  if (classError) return <ErrorState error={classError} onRetry={retryClasses} />;
+  if (studentsError) return <ErrorState error={studentsError} onRetry={retryStudents} />;
 
   const toggleMember = (id) => setMembers((m) => m.includes(id) ? m.filter((x) => x !== id) : [...m, id]);
 
@@ -129,7 +126,7 @@ function NewRoomForm({ onClose, onCreated }) {
     <div className="grid sm:grid-cols-2 gap-4">
       <div className="sm:col-span-2 space-y-1.5"><label className="label">Judul Diskusi *</label><input className="input" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></div>
       <div className="space-y-1.5"><label className="label">Tipe</label><select className="select" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}><option value="CLASS_DISCUSSION">Diskusi Kelas</option><option value="SCHOOL_DISCUSSION">Diskusi Sekolah</option><option value="TEACHER_PARENT">Guru &amp; Orang Tua</option><option value="TEACHER_STUDENT">Diskusi Pribadi</option></select></div>
-      <div className="space-y-1.5"><label className="label">Kelas</label><select className="select" value={classSel} onChange={(e) => setClassSel(+e.target.value)}>{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+      <div className="space-y-1.5"><label className="label">Kelas</label><select className="select" value={activeClass} onChange={(e) => setClassSel(+e.target.value)}>{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
       <div className="sm:col-span-2 space-y-1.5"><label className="label">Deskripsi</label><textarea className="textarea" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></div>
       {f.type === 'CLASS_DISCUSSION' && (
         <div className="sm:col-span-2">

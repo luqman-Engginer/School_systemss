@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Page, Spinner, useToast } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Spinner, useToast, ErrorState } from '../../components/ui';
 
 export function SettingsPage({ title, subtitle, children }) {
+  const { data, error, retry } = useApi('/admin/settings');
   const [s, setS] = useState(null);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
 
-  useEffect(() => {
-    api('/admin/settings').then(setS).catch(() => {});
-  }, []);
+  useEffect(() => { if (data != null) setS(data); }, [data]);
 
   const save = async () => {
     setLoading(true);
     try { await api('/admin/settings', { method: 'PUT', body: s }); toast.success('Pengaturan berhasil disimpan.'); }
     catch (e) { toast.error(e.message); } finally { setLoading(false); }
   };
+
+  if (error) return <ErrorState error={error} onRetry={retry} />;
 
   return (
     <Page title={title} subtitle={subtitle}

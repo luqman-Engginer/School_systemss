@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Badge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, EmptyState, Badge, ErrorState } from '../../components/ui';
 import { ShieldAlert } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function ParentDiscipline() {
   const { childId } = useParams();
-  const [d, setD] = useState(null);
-  useEffect(() => { api(`/parent/child/${childId}/discipline`).then(setD).catch(() => {}); }, [childId]);
+  const { data: d, error, retry } = useApi(`/parent/child/${childId}/discipline`, { enabled: !!childId, deps: [childId] });
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const totalPoints = d.reduce((a, r) => a + (r.point || 0), 0);

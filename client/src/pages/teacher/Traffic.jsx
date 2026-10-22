@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, ProgressBar, Avatar, Badge } from '../../components/ui';
+import { useMemo, useState } from 'react';
+import { Page, Card, Spinner, EmptyState, ProgressBar, Avatar, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import {
   TrendingUp, Users, BookOpen, ClipboardCheck, Star, CalendarDays, Activity
 } from 'lucide-react';
@@ -12,27 +12,20 @@ import {
 const TONES = { indigo: '#6366f1', sky: '#0ea5e9', emerald: '#10b981', amber: '#f59e0b', rose: '#f43f5e', violet: '#8b5cf6' };
 
 export default function TeacherTraffic() {
-  const [classes, setClasses] = useState([]);
+  const { data: classData, error: classError, retry: retryClasses } = useApi('/teacher/my-classes');
+  const classes = classData?.classes ?? [];
   const [selected, setSelected] = useState(null);
+  const activeClass = selected ?? classes[0]?.id ?? null;
   const [days, setDays] = useState(14);
-  const [d, setD] = useState(null);
+  const { data: d, error, retry } = useApi(`/teacher/traffic?class_id=${activeClass}&days=${days}`, { enabled: !!activeClass });
   const [expanded, setExpanded] = useState(null);
 
-  useEffect(() => {
-    api('/teacher/my-classes').then((mc) => {
-      setClasses(mc.classes);
-      if (mc.classes.length) setSelected(mc.classes[0].id);
-    }).catch(() => {});
-  }, []);
+  const sortedStudents = useMemo(() => (d ? [...d.students].sort((a, b) => b.overall - a.overall) : []), [d]);
 
-  useEffect(() => {
-    if (selected) { setD(null); api(`/teacher/traffic?class_id=${selected}&days=${days}`).then(setD).catch(() => {}); }
-    else setD(null);
-  }, [selected, days]);
+  if (classError) return <ErrorState error={classError} onRetry={retryClasses} />;
+  if (error) return <ErrorState error={error} onRetry={retry} />;
 
   const tone = (v) => (v >= 75 ? 'emerald' : v >= 50 ? 'amber' : 'rose');
-
-  const sortedStudents = useMemo(() => (d ? [...d.students].sort((a, b) => b.overall - a.overall) : []), [d]);
 
   return (
     <Page

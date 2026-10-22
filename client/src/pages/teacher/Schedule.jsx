@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Badge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { DAY_NAMES } from '../../constants';
 
 export default function TeacherSchedule() {
-  const [d, setD] = useState(null);
-  useEffect(() => { api('/teacher/dashboard').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/teacher/dashboard');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const days = [1, 2, 3, 4, 5, 6, 0];

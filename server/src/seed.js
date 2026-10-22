@@ -3,7 +3,7 @@ const db = require('./db');
 
 async function insert(table, data) {
   const keys = Object.keys(data);
-  const cols = keys.join(', ');
+  const cols = keys.map((k) => `\`${k}\``).join(', ');
   const ph = keys.map(() => '?').join(', ');
   const stmt = db.prepare(`INSERT INTO ${table} (${cols}) VALUES (${ph})`);
   const res = await stmt.run(...keys.map((k) => data[k]));
@@ -194,7 +194,9 @@ async function seed() {
   const achievementDefs = [
     ['Juara 1 Robotik Nasional', 'Teknologi', 'Tim Robotik Cendekia', 'Lomba Robotik Nasional', 'Juara 1', '2026', 'Kemenangan atas 120 tim se-Indonesia.'], ['Juara 2 Debat Bahasa Inggris', 'Akademik', 'Erika & Kevin', 'Debat Bahasa Inggris se-Jabodetabek', 'Juara 2', '2026', ''], ['Medali Emas OSN Matematika', 'Akademik', 'Citra Ayu', 'Olimpiade Sains Nasional', 'Medali Emas', '2026', ''], ['Juara 3 Futsal Pelajar', 'Olahraga', 'Tim Futsal Putra', 'Piala Wali Kota Se-Jakarta', 'Juara 3', '2025', '']
   ];
-  achievementDefs.forEach(async (a, i) => await insert('achievements', { title: a[0], category: a[1], student_team: a[2], competition: a[3], rank: a[4], year: a[5], description: a[6], documentation: `/img/prestasi${i + 1}/800/500.svg`, status: 'PUBLISHED' }));
+  for (const [i, a] of achievementDefs.entries()) {
+    await insert('achievements', { title: a[0], category: a[1], student_team: a[2], competition: a[3], rank: a[4], year: a[5], description: a[6], documentation: `/img/prestasi${i + 1}/800/500.svg`, status: 'PUBLISHED' });
+  }
 
   const faqDefs = [
     ['Umum', 'Apa itu SchoolHub?', 'SchoolHub adalah platform digital sekolah terpadu yang menghubungkan admin, guru, murid, dan wali murid dalam satu sistem pembelajaran, komunikasi, dan monitoring.'],
@@ -204,7 +206,9 @@ async function seed() {
     ['Teknis', 'Apakah SchoolHub bisa diakses dari HP?', 'Tentu. SchoolHub dirancang responsif dan dapat diakses dari laptop, tablet, maupun smartphone hanya dengan browser.'],
     ['Umum', 'Kepada siapa saya bisa menghubungi sekolah?', 'Silakan hubungi nomor telepon/kontak yang tersedia di halaman Kontak, atau melalui WhatsApp resmi sekolah.']
   ];
-  faqDefs.forEach(async (f, i) => await insert('faqs', { category: f[0], question: f[1], answer: f[2], sort_order: i, active: 1 }));
+  for (const [i, f] of faqDefs.entries()) {
+    await insert('faqs', { category: f[0], question: f[1], answer: f[2], sort_order: i, active: 1 });
+  }
 
   const rulesDefs = [
     ['Ketertiban', 'Kedisiplinan Waktu', 'Peserta didik hadir di sekolah paling lambat 15 menit sebelum jam pelajaran dimulai. Keterlambatan akan dicatat dan dikonfirmasikan kepada wali murid.'],
@@ -214,7 +218,9 @@ async function seed() {
     ['Teknologi', 'Penggunaan Telepon Genggam', 'Telepon genggam hanya boleh digunakan untuk keperluan pembelajaran atas izin guru. Tidak diizinkan untuk mengambil gambar tanpa izin pihak terkait.'],
     ['Etika', 'Etika Berkomunikasi', 'Sopan santun dalam berkomunikasi lisan dan tulisan, termasuk di ruang diskusi digital, adalah bagian dari kedisiplinan yang dijunjung tinggi.']
   ];
-  rulesDefs.forEach(async (r, i) => await insert('school_rules', { title: r[1], category: r[0], content: r[2], status: 'PUBLISHED', version: '1.0', effective_date: '2026-07-13' }));
+  for (const [i, r] of rulesDefs.entries()) {
+    await insert('school_rules', { title: r[1], category: r[0], content: r[2], status: 'PUBLISHED', version: '1.0', effective_date: '2026-07-13' });
+  }
 
   // ---------- LEARNING MATERIALS ----------
   const materialTitles = {
@@ -348,7 +354,9 @@ async function seed() {
   for (const qd of quizDefs) {
     const subjId = subjIds[qd.subject][0];
     const qid = await insert('quizzes', { title: qd.title, description: `Kuis singkat ${qd.subject} untuk mengukur pemahaman.`, subject_id: subjId, class_id: await classIdFor(subjId), teacher_id: await teacherIdFor(subjId), time_limit: 15, passing_score: 70, status: 'PUBLISHED' });
-    qd.qs.forEach(async (qq) => await insert('questions', { quiz_id: qid, question: qq[0], type: 'MULTIPLE', options: qq[1], correct_answer: qq[2], score: 25 }));
+    for (const qq of qd.qs) {
+      await insert('questions', { quiz_id: qid, question: qq[0], type: 'MULTIPLE', options: qq[1], correct_answer: qq[2], score: 25 });
+    }
   };
 
   // ---------- ASPIRATIONS ----------
@@ -364,7 +372,9 @@ async function seed() {
   const room2 = await insert('discussion_rooms', { title: 'Ruang Informasi Wali Murid', topic: 'Informasi perkembangan dan kegiatan siswa', description: 'Ruang komunikasi khusus wali murid dengan wali kelas.', creator_id: teacherUsers[1], type: 'TEACHER_PARENT', start_date: dateOffset(10), status: 'ACTIVE' });
   await insert('discussion_members', { room_id: room1, user_id: teacherUsers[0] });
   await insert('discussion_members', { room_id: room2, user_id: teacherUsers[1] });
-  studentIds.slice(0, 12).forEach(async (sid) => await insert('discussion_members', { room_id: room1, user_id: sid }));
+  for (const sid of studentIds.slice(0, 12)) {
+    await insert('discussion_members', { room_id: room1, user_id: sid });
+  }
   await insert('discussion_members', { room_id: room2, user_id: parentIds[0] });
   await insert('discussion_members', { room_id: room2, user_id: parentIds[1] });
 
@@ -391,7 +401,9 @@ async function seed() {
     ['ANNOUNCEMENT', 'Informasi Pekan Olahraga', 'Pekan Olahraga Sekolah akan diselenggarakan bulan depan. Siapkan tim kelas Anda!']
   ];
   for (let i = 0; i < Math.min(12, studentIds.length); i++) {
-    notifDefs.forEach(async (nd, j) => await insert('notifications', { recipient_id: studentIds[i], type: nd[0], title: nd[1], message: nd[2], is_read: j < 2 ? 1 : 0, created_at: dateOffset(j * 2) }));
+    for (const [j, nd] of notifDefs.entries()) {
+      await insert('notifications', { recipient_id: studentIds[i], type: nd[0], title: nd[1], message: nd[2], is_read: j < 2 ? 1 : 0, created_at: dateOffset(j * 2) });
+    }
   }
   for (const [j, pid] of parentIds.entries()) {
     await insert('notifications', { recipient_id: pid, type: 'FEEDBACK', title: 'Feedback guru untuk anak Anda', message: 'Guru memberikan catatan perkembangan untuk anak Anda.', is_read: 0, created_at: dateOffset(3) });

@@ -1,0 +1,54 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: schoolhub-mysql
+    restart: unless-stopped
+    env_file:
+      - server/.env
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        if [ -n "$$DB_PASSWORD" ]; then
+          export MYSQL_ROOT_PASSWORD="$$DB_PASSWORD"
+        else
+          export MYSQL_ALLOW_EMPTY_PASSWORD="yes"
+        fi
+        export MYSQL_DATABASE="$${DB_NAME:-schoolhub}"
+        exec docker-entrypoint.sh mysqld --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    image: node:20-alpine
+    container_name: schoolhub-server
+    restart: unless-stopped
+    working_dir: /app
+    env_file:
+      - server/.env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      PORT: 5000
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "${PORT:-5000}:5000"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+      - uploads_data:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: sh -c "npm install && npm start"
+
+volumes:
+  mysql_data:
+  uploads_data:

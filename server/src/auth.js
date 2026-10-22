@@ -1,6 +1,22 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'schoolhub_demo_secret_change_in_production';
+const DEFAULT_SECRET = 'schoolhub_demo_secret_change_in_production';
+const rawSecret = process.env.JWT_SECRET;
+
+if (process.env.NODE_ENV === 'production') {
+  if (!rawSecret || rawSecret.trim() === '' || rawSecret === DEFAULT_SECRET || rawSecret.length < 32) {
+    console.error(
+      '╔══════════════════════════════════════════════════════════════╗\n' +
+      '║  PERINGATAN KEAMANAN: JWT_SECRET belum dikonfigurasi!       ║\n' +
+      '║  Server tetap jalan TAPI TIDAK AMAN untuk production.      ║\n' +
+      '║  Set JWT_SECRET (min 32 karakter) di environment variables. ║\n' +
+      '║  Buat dengan: openssl rand -base64 48                      ║\n' +
+      '╚══════════════════════════════════════════════════════════════╝'
+    );
+  }
+}
+
+const JWT_SECRET = rawSecret || DEFAULT_SECRET;
 const db = require('./db');
 
 function signToken(user) {

@@ -1,31 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Modal, useToast, Avatar, Badge, StatusBadge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Modal, useToast, Avatar, Badge, StatusBadge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { ShieldAlert, Plus } from 'lucide-react';
 import dayjs from 'dayjs';
 
 const CATEGORIES = ['Kedisiplinan', 'Kerajinan', 'Kehadiran', 'Aturan', 'Lainnya'];
 
 export default function TeacherDiscipline() {
-  const [myClasses, setMyClasses] = useState([]);
-  const [students, setStudents] = useState([]);
+  const { data: rows, error, retry } = useApi('/teacher/discipline');
+  const { data: classData, error: classError, retry: retryClasses } = useApi('/teacher/my-classes');
+  const myClasses = classData?.classes ?? [];
   const [selectedClass, setSelectedClass] = useState(null);
-  const [rows, setRows] = useState(null);
+  const activeClass = selectedClass ?? myClasses[0]?.id ?? null;
+  const { data: studentsData, error: studentsError, retry: retryStudents } = useApi(`/teacher/students?class_id=${activeClass}`, { enabled: !!activeClass });
+  const students = studentsData ?? [];
   const [open, setOpen] = useState(false);
   const toast = useToast();
   const [f, setF] = useState({ student_id: '', category: 'Kedisiplinan', point: 5, description: '', date: dayjs().format('YYYY-MM-DD'), notes: '' });
 
-  const loadRecs = () => api('/teacher/discipline').then(setRows).catch(() => {});
+  const loadRecs = () => retry();
 
-  useEffect(() => {
-    api('/teacher/my-classes').then((mc) => { setMyClasses(mc.classes); if (mc.classes.length) setSelectedClass(mc.classes[0].id); }).catch(() => {});
-    loadRecs();
-  }, []);
-
-  useEffect(() => {
-    if (selectedClass) api(`/teacher/students?class_id=${selectedClass}`).then(setStudents).catch(() => {});
-  }, [selectedClass]);
-
+  if (error) return <ErrorState error={error} onRetry={retry} />;
+  if (classError) return <ErrorState error={classError} onRetry={retryClasses} />;
+  if (studentsError) return <ErrorState error={studentsError} onRetry={retryStudents} />;
   if (!rows) return <Spinner />;
 
   const submit = async () => {
@@ -68,7 +66,7 @@ export default function TeacherDiscipline() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2 space-y-1.5">
             <label className="label">Kelas</label>
-            <select className="select" value={selectedClass || ''} onChange={(e) => setSelectedClass(+e.target.value)}>
+            <select className="select" value={activeClass || ''} onChange={(e) => setSelectedClass(+e.target.value)}>
               {myClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>

@@ -15,7 +15,36 @@ const corsOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
-app.use(cors({ origin: corsOrigins.length ? corsOrigins : true, credentials: true }));
+
+// Vercel membuat URL preview unik per deploy (misalnya schoolhub-abc123.vercel.app).
+// Kalau CORS_ORIGIN diisi 'https://schoolhub.vercel.app', preview deploy tetap
+// di-block CORS. Solusi: kalau ada origin .vercel.app dalam daftar, kita juga
+// izinkan semua subdomain Vercel terkait.
+const vercelPatterns = corsOrigins
+  .filter((o) => o.includes('.vercel.app'))
+  .map((o) => {
+    const host = o.replace(/^https?:\/\//, '');
+    const base = host.replace('.vercel.app', '');
+    return new RegExp(`^https://([\\w-]+-)?${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(-[a-z0-9]+)?\.vercel\.app$`);
+  });
+
+const corsOptions = {
+  origin: corsOrigins.length
+    ? (origin, cb) => {
+        if (!origin) return cb(null, true); // same-origin / non-browser
+        if (corsOrigins.includes(origin)) return cb(null, true);
+        if (vercelPatterns.some((re) => re.test(origin))) return cb(null, true);
+        cb(new Error(`CORS: origin ${origin} tidak diizinkan.`));
+      }
+    : true, // dev: izinkan semua
+  credentials: true,
+};
+
+if (!corsOrigins.length && process.env.NODE_ENV === 'production') {
+  console.warn('[cors] CORS_ORIGIN kosong! Semua origin diizinkan. Set CORS_ORIGIN untuk keamanan production.');
+}
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');

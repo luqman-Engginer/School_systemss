@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, mediaUrl } from '../../api';
-import { Spinner, Badge, EmptyState } from '../../components/ui';
+import { mediaUrl } from '../../api';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState, Badge, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { CalendarDays, ArrowRight, User } from 'lucide-react';
 
 export default function News() {
-  const [data, setData] = useState(null);
   const [q, setQ] = useState('');
-  useEffect(() => { api('/public/news').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/news');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
   const items = data.filter((n) => n.title.toLowerCase().includes(q.toLowerCase()));
 
@@ -42,10 +43,9 @@ export default function News() {
 
 export function NewsDetail() {
   const { id } = useParams();
-  const [data, setData] = useState(null);
-  const [err, setErr] = useState(false);
-  useEffect(() => { api(`/public/news/${id}`).then(setData).catch(() => setErr(true)); }, [id]);
-  if (err || (data && !data.title)) return <div className="py-32 text-center"><EmptyState title="Berita tidak ditemukan" /></div>;
+  const { data, error, retry } = useApi(`/public/news/${id}`, { deps: [id] });
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
+  if (data && !data.title) return <div className="py-32 text-center"><EmptyState title="Berita tidak ditemukan" /></div>;
   if (!data) return <Spinner className="min-h-[60vh]" />;
 
   return (

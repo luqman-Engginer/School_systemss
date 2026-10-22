@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Spinner, EmptyState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Spinner, ErrorState, EmptyState } from '../../components/ui';
 import SubPageHero from '../../components/SubPageHero';
 import { Scale } from 'lucide-react';
 
 export default function Rules() {
-  const [data, setData] = useState(null);
-  useEffect(() => { api('/public/school-rules').then(setData).catch(() => {}); }, []);
+  const { data, error, retry } = useApi('/public/school-rules');
+  if (error) return <ErrorState error={error} onRetry={retry} className="min-h-[60vh]" />;
   if (!data) return <Spinner className="min-h-[60vh]" />;
   const groups = data.reduce((acc, r) => { (acc[r.category] = acc[r.category] || []).push(r); return acc; }, {});
 

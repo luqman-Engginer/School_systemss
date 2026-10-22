@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, StatusBadge, Badge, Modal, EmptyState, useToast, Spinner } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, StatusBadge, Badge, Modal, EmptyState, useToast, Spinner, ErrorState } from '../../components/ui';
 import { NotebookPen, Mail } from 'lucide-react';
 
 const STATUSES = ['SUBMITTED', 'UNDER_REVIEW', 'IN_PROGRESS', 'RESOLVED', 'REJECTED'];
 
 export default function AdminAspirasi() {
-  const [rows, setRows] = useState(null);
+  const { data: rows, error, retry } = useApi('/admin/aspirations');
   const [sel, setSel] = useState(null);
   const [form, setForm] = useState({ status: 'SUBMITTED', response: '' });
   const toast = useToast();
-  const load = () => api('/admin/aspirations').then(setRows);
-  useEffect(() => { load(); }, []);
 
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const pending = rows.filter((r) => ['SUBMITTED', 'UNDER_REVIEW', 'IN_PROGRESS'].includes(r.status)).length;
@@ -24,7 +24,7 @@ export default function AdminAspirasi() {
       await api(`/admin/aspirations/${sel.id}`, { method: 'PUT', body: { status, admin_response: response } });
       toast.success(`Aspirasi berstatus ${status}.`);
       setSel(null);
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, StatusBadge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, StatusBadge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { CalendarCheck2, CalendarClock, CalendarX } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function StudentAttendance() {
-  const [d, setD] = useState(null);
-  useEffect(() => { api('/student/attendance').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/student/attendance');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const sum = (s) => d.summary.filter((x) => x.status === s).reduce((a, x) => a + x.c, 0);

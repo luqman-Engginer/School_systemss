@@ -1,24 +1,24 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Badge } from '../../components/ui';
+import { useState } from 'react';
+import { Page, Card, Spinner, EmptyState, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { DAY_NAMES } from '../../constants';
 
 export default function StudentSchedule() {
-  const [days, setDays] = useState({});
-  const [loading, setLoading] = useState(true);
   const [today, setToday] = useState(new Date().getDay());
+  const day0 = useApi('/student/schedule?day=0');
+  const day1 = useApi('/student/schedule?day=1');
+  const day2 = useApi('/student/schedule?day=2');
+  const day3 = useApi('/student/schedule?day=3');
+  const day4 = useApi('/student/schedule?day=4');
+  const day5 = useApi('/student/schedule?day=5');
+  const day6 = useApi('/student/schedule?day=6');
+  const results = [day0, day1, day2, day3, day4, day5, day6];
 
-  useEffect(() => {
-    Promise.all([0, 1, 2, 3, 4, 5, 6].map(async (day) => {
-      const rows = await api(`/student/schedule?day=${day}`).catch(() => []);
-      return [day, rows];
-    })).then((entries) => {
-      setDays(Object.fromEntries(entries));
-      setLoading(false);
-    });
-  }, []);
+  const failed = results.find((r) => r.error);
+  if (failed) return <ErrorState error={failed.error} onRetry={() => results.forEach((r) => r.retry())} />;
+  if (results.some((r) => !r.data)) return <Spinner />;
 
-  if (loading) return <Spinner />;
+  const days = Object.fromEntries(results.map((r, i) => [i, r.data]));
 
   return (
     <Page title="Jadwal Pelajaran" subtitle="Pahami jadwal harian dan mingguan Anda.">

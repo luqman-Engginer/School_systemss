@@ -1,5 +1,5 @@
 import { Component, createContext, useContext, useEffect, useState } from 'react';
-import { X, Inbox, CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
+import { X, Inbox, CheckCircle2, XCircle, Info, AlertTriangle, RefreshCw } from 'lucide-react';
 import { mediaUrl } from '../api';
 
 export function Card({ className = '', children, ...rest }) {
@@ -91,6 +91,23 @@ export function Spinner({ className = '' }) {
   return (
     <div className={`grid place-items-center py-20 ${className}`}>
       <div className="h-10 w-10 rounded-full border-[3px] border-indigo-200 border-t-indigo-600 animate-spin" />
+    </div>
+  );
+}
+
+export function ErrorState({ title = 'Gagal memuat data', error, onRetry, className = '' }) {
+  return (
+    <div className={`grid place-items-center py-20 ${className}`}>
+      <div className="card max-w-md w-full p-6 text-center">
+        <div className="mx-auto h-12 w-12 rounded-2xl bg-rose-100 grid place-items-center text-rose-600"><AlertTriangle size={22} /></div>
+        <p className="mt-3 font-extrabold text-slate-800">{title}</p>
+        <p className="mt-1 text-sm text-slate-500 break-words">{String(error?.message || error || 'Terjadi kesalahan tak terduga.')}</p>
+        {onRetry && (
+          <button className="btn-primary btn-sm mt-4" onClick={onRetry}>
+            <RefreshCw size={14} /> Coba lagi
+          </button>
+        )}
+      </div>
     </div>
   );
 }

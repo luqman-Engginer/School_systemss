@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api, mediaUrl } from '../../api';
-import { Page, Card, Spinner, EmptyState, Badge, useToast, VideoModal } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Badge, useToast, VideoModal, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { RefreshCw, Play, FileText, Link2, CheckCircle2 } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function StudentReview() {
-  const [rows, setRows] = useState(null);
   const [video, setVideo] = useState(null);
   const toast = useToast();
-  const load = () => api('/student/review').then(setRows).catch(() => {});
-  useEffect(() => { load(); }, []);
+  const { data: rows, error, retry } = useApi('/student/review');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const review = async (m) => {
-    try { await api(`/student/review/${m.material_id}`, { method: 'POST' }); toast.success('Review dicatat. Ulang materi membantu pemahaman!'); load(); } catch (e) { toast.error(e.message); }
+    try { await api(`/student/review/${m.material_id}`, { method: 'POST' }); toast.success('Review dicatat. Ulang materi membantu pemahaman!'); retry(); } catch (e) { toast.error(e.message); }
   };
 
   return (

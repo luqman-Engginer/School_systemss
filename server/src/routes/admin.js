@@ -59,22 +59,37 @@ router.put('/settings', async (req, res) => {
 router.get('/users', async (req, res) => {
   const role = req.query.role || 'STUDENT';
   const q = req.query.q || '';
-  let rows;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const rawLimit = parseInt(req.query.limit, 10);
+  const limit = Math.min(100, Math.max(1, isNaN(rawLimit) ? 20 : rawLimit));
+  const offset = (page - 1) * limit;
+
+  let rows = [];
+  let total = 0;
+
   if (role === 'STUDENT') {
+    const countRes = await db.prepare("SELECT COUNT(*) AS c FROM users u WHERE u.role = 'STUDENT' AND u.name LIKE ?").get(`%${q}%`);
+    total = countRes?.c || 0;
     rows = await db.prepare(`SELECT u.id, u.name, u.email, u.phone, u.photo, u.role, u.status, u.created_at, s.nis, s.gender, sc.class_id, c.name AS class_name
       FROM users u LEFT JOIN students s ON s.user_id = u.id LEFT JOIN student_classes sc ON sc.student_id = u.id AND sc.status = 'ACTIVE' LEFT JOIN classes c ON c.id = sc.class_id
-      WHERE u.role = 'STUDENT' AND u.name LIKE ? ORDER BY u.name`).all(`%${q}%`);
+      WHERE u.role = 'STUDENT' AND u.name LIKE ? ORDER BY u.name LIMIT ${limit} OFFSET ${offset}`).all(`%${q}%`);
   } else if (role === 'TEACHER') {
+    const countRes = await db.prepare("SELECT COUNT(*) AS c FROM users u WHERE u.role = 'TEACHER' AND u.name LIKE ?").get(`%${q}%`);
+    total = countRes?.c || 0;
     rows = await db.prepare(`SELECT u.id, u.name, u.email, u.phone, u.photo, u.role, u.status, u.created_at, t.position, t.subject, t.public_visible
-      FROM users u LEFT JOIN teachers t ON t.user_id = u.id WHERE u.role = 'TEACHER' AND u.name LIKE ? ORDER BY u.name`).all(`%${q}%`);
+      FROM users u LEFT JOIN teachers t ON t.user_id = u.id WHERE u.role = 'TEACHER' AND u.name LIKE ? ORDER BY u.name LIMIT ${limit} OFFSET ${offset}`).all(`%${q}%`);
   } else if (role === 'PARENT') {
+    const countRes = await db.prepare("SELECT COUNT(*) AS c FROM users u WHERE u.role = 'PARENT' AND u.name LIKE ?").get(`%${q}%`);
+    total = countRes?.c || 0;
     rows = await db.prepare(`SELECT u.id, u.name, u.email, u.phone, u.photo, u.role, u.status, u.created_at, p.occupation,
       (SELECT COUNT(*) FROM parent_student ps WHERE ps.parent_id = u.id) AS children_count
-      FROM users u LEFT JOIN parents p ON p.user_id = u.id WHERE u.role = 'PARENT' AND u.name LIKE ? ORDER BY u.name`).all(`%${q}%`);
+      FROM users u LEFT JOIN parents p ON p.user_id = u.id WHERE u.role = 'PARENT' AND u.name LIKE ? ORDER BY u.name LIMIT ${limit} OFFSET ${offset}`).all(`%${q}%`);
   } else {
-    rows = await db.prepare("SELECT u.* FROM users u WHERE u.role = 'ADMIN' ORDER BY u.name").all();
+    const countRes = await db.prepare("SELECT COUNT(*) AS c FROM users u WHERE u.role = 'ADMIN' AND u.name LIKE ?").get(`%${q}%`);
+    total = countRes?.c || 0;
+    rows = await db.prepare(`SELECT u.* FROM users u WHERE u.role = 'ADMIN' AND u.name LIKE ? ORDER BY u.name LIMIT ${limit} OFFSET ${offset}`).all(`%${q}%`);
   }
-  res.json({ success: true, data: rows });
+  res.json({ success: true, data: { rows, total } });
 });
 
 router.get('/users/options', async (req, res) => {
@@ -118,6 +133,77 @@ router.post('/users', async (req, res) => {
   if (role === 'PARENT') await db.prepare('INSERT INTO parents (user_id, occupation) VALUES (?,?)').run(uid, b.occupation || '');
   await db.prepare('INSERT INTO activity_logs (user_id, action, entity, details) VALUES (?,?,?,?)').run(req.user.id, 'CREATE', 'users', `Created user ${name} (${role})`);
   res.status(201).json({ success: true, data: { id: uid } });
+});
+
+router.post('/users/import', async (req, res) => {
+  const students = Array.isArray(req.body) ? req.body : req.body?.students || [];
+  if (!Array.isArray(students) || !students.length) {
+    return res.status(422).json({ success: false, error: 'Data murid untuk diimpor tidak boleh kosong.' });
+  }
+
+  let successCount = 0;
+  let failedCount = 0;
+  const results = [];
+
+  for (let i = 0; i < students.length; i++) {
+    const s = students[i];
+    const rowNum = i + 1;
+    const name = String(s.name || '').trim();
+    const email = String(s.email || '').trim().toLowerCase();
+    const nis = String(s.nis || '').trim();
+    const gender = (s.gender && String(s.gender).trim().toUpperCase() === 'P') ? 'P' : 'L';
+    const classId = s.class_id ? Number(s.class_id) : null;
+
+    if (!name || !email) {
+      failedCount++;
+      results.push({ row: rowNum, name, email, status: 'FAILED', reason: 'Nama dan email wajib diisi.' });
+      continue;
+    }
+
+    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (existing) {
+      failedCount++;
+      results.push({ row: rowNum, name, email, status: 'FAILED', reason: 'Email sudah terdaftar.' });
+      continue;
+    }
+
+    const initialPassword = nis || 'siswa123';
+    const passwordHash = bcrypt.hashSync(initialPassword, 10);
+
+    try {
+      const uid = (await db.prepare('INSERT INTO users (name, email, password_hash, role, phone, photo) VALUES (?,?,?,?,?,?)')
+        .run(name, email, passwordHash, 'STUDENT', s.phone || '', s.photo || '')).lastInsertRowid;
+
+      await db.prepare('INSERT INTO students (user_id, nis, gender, birth_date) VALUES (?,?,?,?)')
+        .run(uid, nis, gender, s.birth_date || '');
+
+      if (classId) {
+        await db.prepare('INSERT INTO student_classes (student_id, class_id, academic_year_id, status) VALUES (?,?,?,?)')
+          .run(uid, classId, null, 'ACTIVE');
+      }
+
+      successCount++;
+      results.push({ row: rowNum, name, email, status: 'SUCCESS' });
+    } catch (err) {
+      failedCount++;
+      results.push({ row: rowNum, name, email, status: 'FAILED', reason: err.message || 'Gagal menyimpan ke database.' });
+    }
+  }
+
+  if (successCount > 0) {
+    await db.prepare('INSERT INTO activity_logs (user_id, action, entity, details) VALUES (?,?,?,?)')
+      .run(req.user.id, 'IMPORT', 'users', `Imported ${successCount} students via CSV`);
+  }
+
+  res.json({
+    success: true,
+    data: {
+      total: students.length,
+      successCount,
+      failedCount,
+      results
+    }
+  });
 });
 
 router.put('/users/:id', async (req, res) => {
@@ -167,10 +253,24 @@ router.delete('/users/:id', async (req, res) => {
 const crud = (table, columns, { searchCol = 'title', detailJoin = '' } = {}) => {
   router.get(`/${table}`, async (req, res) => {
     const q = req.query.q || '';
-    let rows;
-    if (q) rows = await db.prepare(`SELECT * FROM ${table} WHERE ${searchCol} LIKE ? ORDER BY id DESC`).all(`%${q}%`);
-    else rows = await db.prepare(`SELECT * FROM ${table} ORDER BY id DESC`).all();
-    res.json({ success: true, data: rows });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit = Math.min(100, Math.max(1, isNaN(rawLimit) ? 20 : rawLimit));
+    const offset = (page - 1) * limit;
+
+    let total = 0;
+    let rows = [];
+
+    if (q) {
+      const countRes = await db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE ${searchCol} LIKE ?`).get(`%${q}%`);
+      total = countRes?.c || 0;
+      rows = await db.prepare(`SELECT * FROM ${table} WHERE ${searchCol} LIKE ? ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`).all(`%${q}%`);
+    } else {
+      const countRes = await db.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get();
+      total = countRes?.c || 0;
+      rows = await db.prepare(`SELECT * FROM ${table} ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`).all();
+    }
+    res.json({ success: true, data: { rows, total } });
   });
   router.get(`/${table}/:id`, async (req, res) => {
     const row = await db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(req.params.id);
@@ -182,12 +282,12 @@ const crud = (table, columns, { searchCol = 'title', detailJoin = '' } = {}) => 
     const keys = columns.filter((c) => body[c] !== undefined);
     if (!keys.length) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
     if (body.status === '') delete body.status;
-    const colStr = keys.join(', ');
+    const colStr = keys.map((k) => `\`${k}\``).join(', ');
     const ph = keys.map(() => '?').join(', ');
-    const vals = keys.map((k) => (body[k] === null ? '' : body[k]));
+    const vals = keys.map((k) => (k.endsWith('_id') && (body[k] === '' || body[k] == null) ? null : body[k] === null ? '' : body[k]));
     if (table === 'news') {
       vals.push(body.author_id || req.user.id);
-      const r = await db.prepare(`INSERT INTO news (${colStr}, author_id) VALUES (${ph}, ?)`).run(...vals);
+      const r = await db.prepare(`INSERT INTO news (${colStr}, \`author_id\`) VALUES (${ph}, ?)`).run(...vals);
       await db.prepare('INSERT INTO activity_logs (user_id, action, entity, details) VALUES (?,?,?,?)').run(req.user.id, 'CREATE', 'news', `Created news #${r.lastInsertRowid}`);
       return res.status(201).json({ success: true, data: { id: r.lastInsertRowid } });
     }
@@ -200,8 +300,8 @@ const crud = (table, columns, { searchCol = 'title', detailJoin = '' } = {}) => 
     const keys = columns.filter((c) => body[c] !== undefined);
     if (!keys.length) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
     if (body.status === '') delete body.status;
-    const sets = keys.map((k) => `${k} = ?`).join(', ');
-    const vals = keys.map((k) => (body[k] === null ? '' : body[k]));
+    const sets = keys.map((k) => `\`${k}\` = ?`).join(', ');
+    const vals = keys.map((k) => (k.endsWith('_id') && (body[k] === '' || body[k] == null) ? null : body[k] === null ? '' : body[k]));
     await db.prepare(`UPDATE ${table} SET ${sets} WHERE id = ?`).run(...vals, req.params.id);
     await db.prepare('INSERT INTO activity_logs (user_id, action, entity, details) VALUES (?,?,?,?)').run(req.user.id, 'UPDATE', table, `Updated ${table} #${req.params.id}`);
     res.json({ success: true, data: { id: req.params.id } });

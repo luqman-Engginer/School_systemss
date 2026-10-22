@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../api';
-import { Page, Card, Spinner, Badge, EmptyState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, Badge, EmptyState, ErrorState } from '../../components/ui';
 import { GraduationCap, UserCheck, MessageSquare, ArrowUpRight } from 'lucide-react';
 
 export default function ParentChildren() {
-  const [d, setD] = useState(null);
+  const { data: d, error, retry } = useApi('/parent/dashboard');
   const navigate = useNavigate();
-  useEffect(() => { api('/parent/dashboard').then(setD).catch(() => {}); }, []);
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   return (

@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../../api';
+import { useApi } from '../../hooks/useApi';
 import { useAuth } from '../../store';
-import { Page, Stat, Card, Spinner, StatusBadge, ProgressBar, EmptyState, Badge } from '../../components/ui';
+import { Page, Stat, Card, Spinner, ErrorState, StatusBadge, ProgressBar, EmptyState, Badge } from '../../components/ui';
 import { Users, BookOpen, ClipboardList, UserCheck, CalendarDays, MessageSquare, ArrowUpRight } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -10,10 +9,10 @@ import 'dayjs/locale/id';
 dayjs.locale('id');
 
 export default function TeacherDashboard() {
-  const [d, setD] = useState(null);
   const { user } = useAuth();
   const navigate = useNavigate();
-  useEffect(() => { api('/teacher/dashboard').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/teacher/dashboard');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const now = dayjs();

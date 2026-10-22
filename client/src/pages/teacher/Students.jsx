@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Avatar, Badge, StatusBadge, useToast, Modal } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Avatar, Badge, StatusBadge, useToast, Modal, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { MessageSquare, ShieldAlert } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function TeacherStudents() {
-  const [d, setD] = useState(null);
+  const { data: d, error, retry } = useApi('/teacher/my-classes');
   const [selected, setSelected] = useState(null);
-  const [students, setStudents] = useState([]);
+  const activeClass = selected !== null ? selected : (d?.classes?.[0]?.id ?? null);
   const [subject, setSubject] = useState('');
+  const activeSubject = subject || d?.subjects?.[0]?.id || '';
+  const { data: studentsData, error: studentsError, retry: retryStudents } = useApi(`/teacher/students?class_id=${activeClass}`, { enabled: !!activeClass });
+  const students = activeClass ? (studentsData ?? []) : [];
   const [history, setHistory] = useState(null);
   const [fbOpen, setFbOpen] = useState(false);
   const [fbText, setFbText] = useState('');
@@ -16,23 +20,13 @@ export default function TeacherStudents() {
   const [disForm, setDisForm] = useState({ category: 'Kedisiplinan', point: 5, description: '', date: dayjs().format('YYYY-MM-DD'), notes: '' });
   const toast = useToast();
 
-  useEffect(() => {
-    api('/teacher/my-classes').then((mc) => {
-      setD(mc);
-      if (mc.classes.length) setSelected(mc.classes[0].id);
-      if (mc.subjects.length) setSubject(mc.subjects[0].id);
-    }).catch(() => {});
-  }, []);
-  useEffect(() => {
-    if (selected) api(`/teacher/students?class_id=${selected}`).then(setStudents).catch(() => {});
-    else setStudents([]);
-  }, [selected]);
-
+  if (error) return <ErrorState error={error} onRetry={retry} />;
+  if (studentsError) return <ErrorState error={studentsError} onRetry={retryStudents} />;
   if (!d) return <Spinner />;
 
   const sendFeedback = async (st) => {
     try {
-      await api('/teacher/feedback', { method: 'POST', body: { student_id: st.id, subject_id: subject || null, content: fbText } });
+      await api('/teacher/feedback', { method: 'POST', body: { student_id: st.id, subject_id: activeSubject || null, content: fbText } });
       toast.success('Feedback terkirim ke siswa.');
       setFbOpen(false); setFbText('');
     } catch (e) { toast.error(e.message); }
@@ -55,12 +49,12 @@ export default function TeacherStudents() {
   return (
     <Page title="Siswa & Interaksi" subtitle="Lihat siswa, kirim feedback, catat kedisiplinan, dan pantau kehadiran.">
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <select className="select" value={selected || ''} onChange={(e) => setSelected(+e.target.value)}>
+        <select className="select" value={activeClass || ''} onChange={(e) => setSelected(+e.target.value)}>
           <option value="">Semua kelas</option>
           {d.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <div className="ml-auto flex gap-2">
-          <select className="select !w-auto" value={subject} onChange={(e) => setSubject(e.target.value)}>
+          <select className="select !w-auto" value={activeSubject} onChange={(e) => setSubject(e.target.value)}>
             {d.subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>

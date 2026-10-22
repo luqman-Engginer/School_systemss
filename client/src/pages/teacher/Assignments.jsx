@@ -1,23 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Modal, StatusBadge, EmptyState, useToast, Spinner, Badge, Avatar, ProgressBar } from '../../components/ui';
+import { Page, Card, Modal, StatusBadge, EmptyState, useToast, Spinner, Badge, Avatar, ProgressBar, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Plus, Pencil, Trash2, ClipboardList, Star } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function TeacherAssignments() {
-  const [rows, setRows] = useState(null);
-  const [meta, setMeta] = useState({ subjects: [], classes: [] });
+  const { data: rows, error, retry } = useApi('/teacher/assignments');
+  const { data: myClasses, error: metaError, retry: retryMeta } = useApi('/teacher/my-classes');
+  const meta = myClasses ? { subjects: myClasses.subjects, classes: myClasses.classes } : { subjects: [], classes: [] };
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(null);
   const [gradeFor, setGradeFor] = useState(null);
   const [gradeData, setGradeData] = useState(null);
   const toast = useToast();
 
-  const load = () => Promise.all([api('/teacher/assignments'), api('/teacher/my-classes')])
-    .then(([a, mc]) => { setRows(a); setMeta({ subjects: mc.subjects, classes: mc.classes }); });
+  const load = () => { retry(); retryMeta(); };
 
-  useEffect(() => { load(); }, []);
-  if (!rows) return <Spinner />;
+  if (error) return <ErrorState error={error} onRetry={retry} />;
+  if (metaError) return <ErrorState error={metaError} onRetry={retryMeta} />;
+  if (!rows || !myClasses) return <Spinner />;
 
   const save = async (f) => {
     try {

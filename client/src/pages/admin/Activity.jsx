@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Badge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Spinner, EmptyState, Badge, ErrorState } from '../../components/ui';
 import { Activity, User } from 'lucide-react';
 
 export default function AdminActivity() {
-  const [d, setD] = useState(null);
-  useEffect(() => { api('/admin/dashboard').then(setD).catch(() => {}); }, []);
+  const { data: d, error, retry } = useApi('/admin/dashboard');
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!d) return <Spinner />;
 
   const logs = d.activity;

@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge } from '../../components/ui';
+import { Page, Card, Spinner, EmptyState, Modal, useToast, StatusBadge, Badge, ErrorState } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
 import { Megaphone, Send } from 'lucide-react';
 import dayjs from 'dayjs';
 
 export default function StudentAspirations() {
-  const [rows, setRows] = useState(null);
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(null);
   const [f, setF] = useState({ title: '', category: 'Saran', content: '', anonymous: false });
   const toast = useToast();
+  const { data: rows, error, retry } = useApi('/student/aspirations');
 
-  const load = () => api('/student/aspirations').then(setRows).catch(() => {});
-  useEffect(() => { load(); }, []);
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!rows) return <Spinner />;
 
   const submit = async () => {
@@ -22,7 +22,7 @@ export default function StudentAspirations() {
       toast.success('Aspirasi terkirim ke pihak sekolah. Terima kasih atas masukanmu!');
       setOpen(false);
       setF({ title: '', category: 'Saran', content: '', anonymous: false });
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

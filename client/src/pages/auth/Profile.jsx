@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import { Page, Card, Modal, useToast, Spinner, Avatar, Badge } from '../../components/ui';
+import { useApi } from '../../hooks/useApi';
+import { Page, Card, Modal, useToast, Spinner, Avatar, Badge, ErrorState } from '../../components/ui';
 import { UserCircle2, Eye, EyeOff } from 'lucide-react';
 
 export default function Profile() {
-  const [me, setMe] = useState(null);
+  const { data: me, error, retry } = useApi('/auth/me');
   const [f, setF] = useState({ name: '', phone: '', photo: '' });
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [pwOpen, setPwOpen] = useState(false);
   const [show, setShow] = useState(false);
   const toast = useToast();
 
-  const load = () => api('/auth/me').then((d) => { setMe(d); setF({ name: d.name, phone: d.phone || '', photo: d.photo || '' }); }).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (me) setF({ name: me.name, phone: me.phone || '', photo: me.photo || '' }); }, [me]);
+
+  if (error) return <ErrorState error={error} onRetry={retry} />;
   if (!me) return <Spinner />;
 
   const save = async () => {
     try {
       await api('/auth/profile', { method: 'PUT', body: f });
       toast.success('Profil diperbarui.');
-      load();
+      retry();
     } catch (e) { toast.error(e.message); }
   };
 

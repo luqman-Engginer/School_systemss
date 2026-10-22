@@ -4,26 +4,32 @@ node_modules/
 # Build output
 client/dist/
 
-# SQLite database files
-server/data/*.db
-server/data/*.db-wal
-server/data/*.db-shm
-
 # Database backups (hasil npm run backup)
 server/backups/
+*.sql
+
+# Database lokal sisa era SQLite (sekarang sudah MySQL)
+server/data/
 
 # Uploaded files
 server/uploads/
 
 # Logs
 *.log
+*.err
 npm-debug.log*
+
+# Probe / Temp scripts
+_probe.js
 
 # Editor / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Worktree internal tooling
+.kilo/
 
 # Env
 .env
