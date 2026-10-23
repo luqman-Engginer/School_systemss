@@ -81,7 +81,7 @@ router.put('/materials/:id', async (req, res) => {
   const keys = ['title', 'description', 'file_url', 'video_url', 'external_link', 'subject_id', 'class_id', 'meeting', 'is_extra', 'status'];
   const sets = keys.filter((k) => b[k] !== undefined).map((k) => `${k} = ?`).join(', ');
   const vals = keys.filter((k) => b[k] !== undefined).map((k) => b[k]);
-  if (!keys.length || !sets) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
+  if (!vals.length || !sets) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
   await db.prepare(`UPDATE learning_materials SET ${sets} WHERE id = ? AND teacher_id = ?`).run(...vals, req.params.id, await tid(req));
   res.json({ success: true, data: { id: req.params.id } });
 });
@@ -146,7 +146,7 @@ router.put('/assignments/:id', async (req, res) => {
   const keys = ['title', 'description', 'instructions', 'attachment', 'subject_id', 'class_id', 'deadline', 'max_score', 'status'];
   const sets = keys.filter((k) => b[k] !== undefined).map((k) => `${k} = ?`).join(', ');
   const vals = keys.filter((k) => b[k] !== undefined).map((k) => b[k]);
-  if (!keys.length || !sets) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
+  if (!vals.length || !sets) return res.status(422).json({ success: false, error: 'Tidak ada data.' });
   await db.prepare(`UPDATE assignments SET ${sets} WHERE id = ? AND teacher_id = ?`).run(...vals, req.params.id, await tid(req));
   res.json({ success: true, data: { id: req.params.id } });
 });
@@ -166,8 +166,8 @@ router.get('/assignments/:id/submissions', async (req, res) => {
 
 router.post('/submissions/:id/grade', async (req, res) => {
   const b = req.body || {};
-  const sub = await db.prepare('SELECT s.*, a.teacher_id, a.title, s.student_id FROM assignment_submissions s JOIN assignments a ON a.id = s.assignment_id WHERE s.id = ?').get(req.params.id);
-  if (!sub || sub.teacher_id !== await tid(req)) return res.status(403).json({ success: false, error: 'Tidak berhak menilai.' });
+  const sub = await db.prepare('SELECT s.*, a.teacher_id AS assignment_teacher_id, a.title, s.student_id FROM assignment_submissions s JOIN assignments a ON a.id = s.assignment_id WHERE s.id = ?').get(req.params.id);
+  if (!sub || sub.assignment_teacher_id !== await tid(req)) return res.status(403).json({ success: false, error: 'Tidak berhak menilai.' });
   const grade = b.grade !== undefined ? Number(b.grade) : sub.grade;
   const status = grade !== null ? 'GRADED' : sub.status;
   await db.prepare('UPDATE assignment_submissions SET grade = ?, feedback = ?, status = ?, max_score = ? WHERE id = ?').run(grade, b.feedback !== undefined ? b.feedback : sub.feedback, status, b.max_score || sub.max_score, req.params.id);

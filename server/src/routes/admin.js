@@ -99,23 +99,6 @@ router.get('/users/options', async (req, res) => {
   res.json({ success: true, data: { students, classes, years } });
 });
 
-router.get('/users/:id', async (req, res) => {
-  const id = req.params.id;
-  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-  if (!user) return res.status(404).json({ success: false, error: 'User tidak ditemukan.' });
-  let detail = {};
-  if (user.role === 'TEACHER') detail = await db.prepare('SELECT * FROM teachers WHERE user_id = ?').get(id) || {};
-  if (user.role === 'STUDENT') {
-    detail = await db.prepare('SELECT * FROM students WHERE user_id = ?').get(id) || {};
-    detail.class_id = (await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ? AND status = \'ACTIVE\'').get(id))?.class_id || null;
-  }
-  if (user.role === 'PARENT') {
-    detail = await db.prepare('SELECT * FROM parents WHERE user_id = ?').get(id) || {};
-    detail.children = await db.prepare('SELECT ps.student_id, ps.relation, u.name FROM parent_student ps JOIN users u ON u.id = ps.student_id WHERE ps.parent_id = ?').all(id);
-  }
-  res.json({ success: true, data: { ...user, detail } });
-});
-
 router.post('/users', async (req, res) => {
   const b = req.body || {};
   const { name, email, password, role, phone = '', photo = '' } = b;
@@ -135,6 +118,8 @@ router.post('/users', async (req, res) => {
   res.status(201).json({ success: true, data: { id: uid } });
 });
 
+// PENTING: route /users/import harus didaftarkan SEBELUM /users/:id
+// agar Express tidak salah mencocokkan string literal 'import' sebagai :id
 router.post('/users/import', async (req, res) => {
   const students = Array.isArray(req.body) ? req.body : req.body?.students || [];
   if (!Array.isArray(students) || !students.length) {
@@ -204,6 +189,23 @@ router.post('/users/import', async (req, res) => {
       results
     }
   });
+});
+
+router.get('/users/:id', async (req, res) => {
+  const id = req.params.id;
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  if (!user) return res.status(404).json({ success: false, error: 'User tidak ditemukan.' });
+  let detail = {};
+  if (user.role === 'TEACHER') detail = await db.prepare('SELECT * FROM teachers WHERE user_id = ?').get(id) || {};
+  if (user.role === 'STUDENT') {
+    detail = await db.prepare('SELECT * FROM students WHERE user_id = ?').get(id) || {};
+    detail.class_id = (await db.prepare('SELECT class_id FROM student_classes WHERE student_id = ? AND status = \'ACTIVE\'').get(id))?.class_id || null;
+  }
+  if (user.role === 'PARENT') {
+    detail = await db.prepare('SELECT * FROM parents WHERE user_id = ?').get(id) || {};
+    detail.children = await db.prepare('SELECT ps.student_id, ps.relation, u.name FROM parent_student ps JOIN users u ON u.id = ps.student_id WHERE ps.parent_id = ?').all(id);
+  }
+  res.json({ success: true, data: { ...user, detail } });
 });
 
 router.put('/users/:id', async (req, res) => {
